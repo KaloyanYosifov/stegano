@@ -31,7 +31,7 @@ A cross-platform command line tool for steganography, focused on performance and
 
 ## What is steganography?
 
-In short, the art of hiding information in something (like a book, a image, a audio or even a video). 
+In short, the art of hiding information in something (like a book, a image, a audio or even a video).
 [![speakerdeck](resources/plain/stegano-in-rust.jpeg)][slides]
 You can find more information [on my slides][slides] or checkout [my talk on the rust meetup munich in june, 2020][meetup].
 
@@ -98,7 +98,7 @@ SUBCOMMANDS:
     hide          Hides data in PNG images and WAV audio files
     unveil        Unveils data from PNG images
     unveil-raw    Unveils raw data in PNG images
-``` 
+```
 
 ## Subcommands
 
@@ -215,7 +215,7 @@ Now let's unveil the message from above `secret-text.png`. So we would run:
   -i secret-text.png \
   -o message
 
-❯ cat message/secret-message.txt
+❯ cat message/message.txt
 This is a super secret message
 ```
 
@@ -246,7 +246,7 @@ Let's unveil the raw data of the `README.md` that we've hidden just above in `RE
 ❯ stegano unveil-raw --in README.png --out README.bin
 ```
 
-The file `README.bin` contains all raw binary data unfiltered decoded by the LSB decoding algorithm. 
+The file `README.bin` contains all raw binary data unfiltered decoded by the LSB decoding algorithm.
 That is for the curious people, and not so much interesting for regular usage.
 
 ## stegano on the web
@@ -257,8 +257,8 @@ That is for the curious people, and not so much interesting for regular usage.
 
 To contribute to stegano-rs you can either checkout existing issues [labeled with `good first issue`][4] or [open a new issue][5]
  and describe your problem.
-  
-Also every PR is welcome, just as a note of caution: at this very time the architecture and the API are still in flux and might change, so in any case I recommend opening an issue first to discuss a code contribution. 
+
+Also every PR is welcome, just as a note of caution: at this very time the architecture and the API are still in flux and might change, so in any case I recommend opening an issue first to discuss a code contribution.
 
 ## License
 

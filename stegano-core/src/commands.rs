@@ -2,7 +2,7 @@ use crate::media::audio::wav_iter::AudioWavIter;
 use crate::media::image::LsbCodec;
 use crate::universal_decoder::{Decoder, OneBitUnveil};
 use crate::{CodecOptions, Media, Message, RawMessage, SteganoError};
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 
@@ -20,7 +20,7 @@ pub fn unveil(
             let mut files = msg.files;
 
             if let Some(text) = msg.text {
-                files.push(("secret-message.txt".to_owned(), text.as_bytes().to_vec()));
+                files.push(("message.txt".to_owned(), text.as_bytes().to_vec()));
             }
 
             files
@@ -32,7 +32,7 @@ pub fn unveil(
             let mut files = msg.files;
 
             if let Some(text) = msg.text {
-                files.push(("secret-message.txt".to_owned(), text.as_bytes().to_vec()));
+                files.push(("message.txt".to_owned(), text.as_bytes().to_vec()));
             }
 
             files
@@ -48,6 +48,10 @@ pub fn unveil(
 
         (file, buf)
     }) {
+        if !destination.exists() {
+            fs::create_dir_all(destination)?;
+        }
+
         let target_file = destination.join(file_name);
         let mut target_file =
             File::create(target_file).map_err(|source| SteganoError::WriteError { source })?;

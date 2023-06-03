@@ -150,25 +150,6 @@ pub enum MediaPrimitiveMut<'a> {
     None,
 }
 
-pub trait HideBit {
-    fn hide_bit(self, bit: bool) -> Result<()>;
-}
-
-impl HideBit for MediaPrimitiveMut<'_> {
-    fn hide_bit(self, bit: bool) -> Result<()> {
-        match self {
-            MediaPrimitiveMut::ImageColorChannel(c) => {
-                *c = (*c & (u8::MAX - 1)) | if bit { 1 } else { 0 };
-            }
-            MediaPrimitiveMut::AudioSample(s) => {
-                *s = (*s & (i16::MAX - 1)) | if bit { 1 } else { 0 };
-            }
-            MediaPrimitiveMut::None => {}
-        }
-        Ok(())
-    }
-}
-
 pub type WavAudio = (WavSpec, Vec<i16>);
 pub type Result<E> = std::result::Result<E, SteganoError>;
 
@@ -243,8 +224,7 @@ impl Persist for Media {
                             .write_sample(*s)
                             .map_err(|_| SteganoError::AudioEncodingError)
                     })
-                    .filter_map(Result::err)
-                    .next()
+                    .find_map(Result::err)
                 {
                     return Err(error);
                 }
@@ -333,7 +313,7 @@ impl SteganoEncoder {
 
     pub fn hide_message(&mut self, msg: &str) -> &mut Self {
         self.message
-            .add_file_data("secret-message.txt", msg.as_bytes().to_vec());
+            .add_file_data("message.txt", msg.as_bytes().to_vec());
 
         self
     }
