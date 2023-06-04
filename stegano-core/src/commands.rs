@@ -93,3 +93,37 @@ pub fn unveil_raw(secret_media: &Path, destination_file: &Path) -> Result<(), St
         }
     }
 }
+
+/// unveil all raw data, no content format interpretation is happening.
+/// Just a raw binary dump of the data gathered by the LSB algorithm.
+pub fn check_files(files: Vec<&Path>) -> Result<Vec<&Path>, SteganoError> {
+    let mut files_with_secrets = vec![];
+
+    for file in files {
+        let media = Media::from_file(file);
+
+        if media.is_err() {
+            continue;
+        }
+
+        match media.unwrap() {
+            Media::Image(image) => {
+                let mut decoder = LsbCodec::decoder(&image, &CodecOptions::default());
+
+                if Message::is_valid(&mut decoder) {
+                    files_with_secrets.push(file);
+                }
+            }
+            Media::Audio(audio) => {
+                let mut decoder =
+                    Decoder::new(AudioWavIter::new(audio.1.into_iter()), OneBitUnveil);
+
+                if Message::is_valid(&mut decoder) {
+                    files_with_secrets.push(file);
+                }
+            }
+        };
+    }
+
+    Ok(files_with_secrets)
+}

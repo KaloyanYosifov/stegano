@@ -1,7 +1,8 @@
 use clap::{crate_authors, crate_description, crate_version, Arg, ArgMatches, Command};
 
-use std::path::Path;
-use stegano_core::commands::{unveil, unveil_raw};
+use std::fs;
+use std::path::{Path, PathBuf};
+use stegano_core::commands::{check_files, unveil, unveil_raw};
 use stegano_core::media::image::lsb_codec::CodecOptions;
 use stegano_core::*;
 
@@ -72,7 +73,8 @@ fn main() -> Result<()> {
                 .required(true)
                 .help("Final data will be stored in that folder"),
         )
-    ).subcommand(Command::new("unveil-raw")
+    )
+        .subcommand(Command::new("unveil-raw")
         .about("Unveils raw data in PNG images")
         .arg(
             Arg::new("input_image")
@@ -91,6 +93,17 @@ fn main() -> Result<()> {
                 .help("Raw data will be stored as binary file"),
         )
     )
+        .subcommand(
+            Command::new("check")
+                    .about("Checks if file or files in directory are secrets")
+                    .arg(
+                        Arg::new("input")
+                        .short('i')
+                        .value_name("file or files")
+                        .required(true)
+                        .help("Choose files or multiple files")
+                        )
+                    )
         .arg(
             Arg::new("color_step_increment")
                 .long("x-color-step-increment")
@@ -134,6 +147,36 @@ fn main() -> Result<()> {
                 Path::new(m.get_one::<String>("input_image").unwrap()),
                 Path::new(m.get_one::<String>("output_folder").unwrap()),
             )?;
+        }
+        Some(("check", m)) => {
+            let input = m.get_one::<String>("input").unwrap();
+            let path = Path::new(input);
+            let mut paths: Vec<PathBuf> = vec![];
+
+            if path.is_dir() {
+                let files = fs::read_dir(path)?;
+                paths = files
+                    .map(|file| file.unwrap().path())
+                    .filter(|file| file.is_file())
+                    .collect();
+            } else {
+                paths.push(path.to_path_buf());
+            }
+
+            let paths_only = paths.iter().map(|path| path.as_path()).collect();
+            let files_with_secrets = check_files(paths_only)?;
+
+            if files_with_secrets.len() == 0 {
+                println!("No secrets found");
+
+                return Ok(());
+            }
+
+            println!("Files With secrets: ");
+
+            files_with_secrets
+                .iter()
+                .for_each(|file| println!("{}", file.to_str().unwrap()));
         }
         _ => {}
     }

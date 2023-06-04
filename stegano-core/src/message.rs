@@ -40,8 +40,7 @@ pub struct Message {
 // TODO implement Result returning
 impl Message {
     pub fn of(dec: &mut dyn Read) -> Self {
-        let version = dec.read_u8().expect("Failed to read version header");
-
+        let version = dec.read_u8().unwrap_or_default();
         let version = ContentVersion::from_u8(version);
 
         match version {
@@ -51,6 +50,16 @@ impl Message {
             ContentVersion::Unsupported(_) => {
                 panic!("Seems like you've got an invalid stegano file")
             }
+        }
+    }
+
+    pub fn is_valid(dec: &mut dyn Read) -> bool {
+        let version = dec.read_u8().unwrap_or_default();
+        let version = ContentVersion::from_u8(version);
+
+        match version {
+            ContentVersion::V1 | ContentVersion::V2 | ContentVersion::V4 => true,
+            ContentVersion::Unsupported(_) => false,
         }
     }
 
