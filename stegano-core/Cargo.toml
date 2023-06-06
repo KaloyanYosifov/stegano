@@ -27,6 +27,7 @@ byteorder = "1.4"
 hound = "3.5"
 thiserror = "1.0"
 enum_dispatch = "0.3"
+pgp = "0.10.1"
 
 [dev-dependencies]
 speculate = "0.1"

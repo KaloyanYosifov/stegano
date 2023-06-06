@@ -79,6 +79,7 @@ pub mod raw_message;
 pub use raw_message::*;
 
 pub mod commands;
+pub mod crypto;
 pub mod media;
 pub mod universal_decoder;
 pub mod universal_encoder;
@@ -129,6 +130,9 @@ pub enum SteganoError {
     /// Represents a failure when creating an audio file.
     #[error("Audio creation error")]
     AudioCreationError,
+
+    #[error("Failed Encryption")]
+    EncryptionError(#[from] pgp::errors::Error),
 
     /// Represents all other cases of `std::io::Error`.
     #[error(transparent)]
