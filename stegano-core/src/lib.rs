@@ -131,6 +131,10 @@ pub enum SteganoError {
     #[error("Audio creation error")]
     AudioCreationError,
 
+    /// Represents a failure when trying to encrypt or derive a key
+    #[error("Failed to encrypt data")]
+    CannotEncryptData,
+
     #[error("Failed Encryption")]
     EncryptionError(#[from] pgp::errors::Error),
 
