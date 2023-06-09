@@ -135,9 +135,6 @@ pub enum SteganoError {
     #[error("Failed to encrypt data")]
     CannotEncryptData,
 
-    #[error("Failed Encryption")]
-    EncryptionError(#[from] pgp::errors::Error),
-
     /// Represents all other cases of `std::io::Error`.
     #[error(transparent)]
     IoError(#[from] std::io::Error),

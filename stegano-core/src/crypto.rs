@@ -1,21 +1,12 @@
-use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+use aes_gcm::{
+    aead::{Aead, AeadCore, KeyInit, OsRng},
+    Aes256Gcm,
+};
 use argon2::Argon2;
-
-type AesCbcEnc = cbc::Encryptor<aes::Aes256>;
-type AesCbcDec = cbc::Decryptor<aes::Aes256>;
 
 use crate::{Result, SteganoError};
 
-fn pad_message(buffer: &[u8]) -> Vec<u8> {
-    let mut size = buffer.len();
-    size += 16 - size % 16;
-    let mut buf = Vec::with_capacity(size);
-    buf.resize(size, 0);
-
-    buf[..buffer.len()].copy_from_slice(buffer);
-
-    buf
-}
+const NONCE_LEN: usize = 12;
 
 pub fn derive_key(password: &str) -> Result<Vec<u8>> {
     let mut key = [0; 32];
@@ -32,66 +23,42 @@ pub fn derive_key(password: &str) -> Result<Vec<u8>> {
 
 pub fn encrypt(message: &str, password: &str) -> Result<Vec<u8>> {
     let key = derive_key(password)?;
+    let cipher = Aes256Gcm::new((&key[..]).into());
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let ciphertext = cipher.encrypt(&nonce, message.as_bytes()).unwrap();
+    let ciphertext_len = ciphertext.len();
+    let mut ciphertext2: Vec<u8> = Vec::with_capacity(ciphertext_len + NONCE_LEN);
 
-    let iv = [0x24; 16];
-    let mut buffer = pad_message(message.as_bytes());
+    ciphertext2.resize(ciphertext_len + NONCE_LEN, 0);
+    ciphertext2[..NONCE_LEN].copy_from_slice(&nonce);
+    ciphertext2[NONCE_LEN..].copy_from_slice(&ciphertext);
 
-    println!("{:?}", message.as_bytes());
-
-    println!("{:?}", buffer);
-    println!(
-        "{:?}",
-        std::str::from_utf8(&buffer[..]).unwrap().to_string()
-    );
-    let buf_len = buffer.len();
-    let encrypted = AesCbcEnc::new((&key[..]).into(), &iv.into())
-        .encrypt_padded_mut::<Pkcs7>(&mut buffer, message.len())
-        .unwrap();
-
-    println!("{}, {}, {}", encrypted.len(), buf_len, message.len());
-
-    Ok(encrypted.to_vec())
+    Ok(ciphertext2)
 }
 
 pub fn decrypt(ciphertext: &[u8], password: &str) -> Result<String> {
     let key = derive_key(password)?;
-    let iv = [0x24; 16];
-    let mut buffer = Vec::from(&ciphertext[..]);
+    let cipher = Aes256Gcm::new((&key[..]).into());
+    let nonce = &ciphertext[0..12];
+    let ciphertext = &ciphertext[12..];
+    let decrypted = cipher.decrypt(nonce.into(), ciphertext).unwrap();
 
-    println!("{:?}", ciphertext.len());
-
-    let text = AesCbcDec::new((&key[..]).into(), iv.into())
-        .decrypt_padded_mut::<Pkcs7>(&mut buffer)
-        .unwrap();
-
-    println!("{:?}", text);
-
-    Ok(std::str::from_utf8(text).unwrap().to_string())
+    Ok(std::str::from_utf8(&decrypted[..]).unwrap().to_string())
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn it_can_encrypt() {
+    fn it_can_encrypt_and_decrypt() {
         let message = "Testing if this is big enough or if we should create a bigger size";
         let key = "12345678912345678912345678912345";
         let encrypted = super::encrypt(message, key);
 
-        // println!("{:?}", encrypted);
-
         assert!(encrypted.is_ok());
 
-        let unwrapped = encrypted.as_ref().unwrap();
+        let ciphertext = encrypted.as_ref().unwrap();
+        let decrypted = super::decrypt(ciphertext, key).unwrap();
 
-        unsafe {
-            println!("{}", std::str::from_utf8_unchecked(unwrapped).to_string());
-        }
-
-        println!(
-            "{}",
-            super::decrypt(encrypted.as_ref().unwrap(), key).unwrap()
-        );
-
-        assert!(!encrypted.is_ok());
+        assert_eq!(message, decrypted);
     }
 }
