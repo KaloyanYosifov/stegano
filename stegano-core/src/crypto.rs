@@ -42,7 +42,7 @@ pub fn encrypt(message: &str, password: &str) -> Result<Vec<u8>> {
     Ok(ciphertext2)
 }
 
-pub fn decrypt(ciphertext: &[u8], password: &str) -> Result<String> {
+pub fn decrypt(ciphertext: &[u8], password: &str) -> Result<Vec<u8>> {
     let nonce = &ciphertext[0..NONCE_LEN];
     let salt = &ciphertext[NONCE_LEN..TOTAL_META_LEN];
     let actual_cipher_text = &ciphertext[TOTAL_META_LEN..];
@@ -50,7 +50,7 @@ pub fn decrypt(ciphertext: &[u8], password: &str) -> Result<String> {
     let cipher = Aes256Gcm::new((&key[..]).into());
     let decrypted = cipher.decrypt(nonce.into(), actual_cipher_text).unwrap();
 
-    Ok(std::str::from_utf8(&decrypted[..]).unwrap().to_string())
+    Ok(decrypted)
 }
 
 #[cfg(test)]
@@ -65,7 +65,8 @@ mod tests {
 
         let ciphertext = encrypted.as_ref().unwrap();
         let decrypted = super::decrypt(ciphertext, key).unwrap();
+        let decrypted_msg = std::str::from_utf8(&decrypted[..]).unwrap().to_string();
 
-        assert_eq!(message, decrypted);
+        assert_eq!(message, decrypted_msg);
     }
 }
