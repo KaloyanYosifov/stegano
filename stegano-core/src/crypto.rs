@@ -40,27 +40,16 @@ pub fn encrypt(message: &str, password: &str) -> Result<Vec<u8>> {
         Ok(ciphertext) => {
             let ciphertext_len = ciphertext.len();
             let new_ciphertext_len = ciphertext_len + TOTAL_META_LEN;
-            let mut ciphertext2: Vec<u8> = Vec::with_capacity(new_ciphertext_len);
+            let mut padded_ciphertext: Vec<u8> = Vec::with_capacity(new_ciphertext_len);
 
-            ciphertext2.resize(new_ciphertext_len, 0);
+            padded_ciphertext.resize(new_ciphertext_len, 0);
 
-            if PADDING_LEN > 0 {
-                ciphertext2[..PADDING_LEN].copy_from_slice(&padding);
-            }
+            padded_ciphertext[..PADDING_LEN].copy_from_slice(&padding);
+            padded_ciphertext[PADDING_LEN..NONCE_LEN + PADDING_LEN].copy_from_slice(&nonce);
+            padded_ciphertext[NONCE_LEN + PADDING_LEN..TOTAL_META_LEN].copy_from_slice(&salt);
+            padded_ciphertext[TOTAL_META_LEN..].copy_from_slice(&ciphertext);
 
-            ciphertext2[PADDING_LEN..NONCE_LEN + PADDING_LEN].copy_from_slice(&nonce);
-            ciphertext2[NONCE_LEN + PADDING_LEN..TOTAL_META_LEN].copy_from_slice(&salt);
-            ciphertext2[TOTAL_META_LEN..].copy_from_slice(&ciphertext);
-
-            println!(
-                "{} and {} and {} and {} and {}",
-                ciphertext2.len(),
-                new_ciphertext_len,
-                PADDING_LEN,
-                TOTAL_META_LEN,
-                ciphertext_len
-            );
-            Ok(ciphertext2)
+            Ok(padded_ciphertext)
         }
         _ => Err(SteganoError::CannotEncryptData),
     }
@@ -72,9 +61,11 @@ pub fn decrypt(ciphertext: &[u8], password: &str) -> Result<Vec<u8>> {
     let actual_cipher_text = &ciphertext[TOTAL_META_LEN..];
     let key = derive_key(password, salt)?;
     let cipher = Aes256Gcm::new((&key[..]).into());
-    let decrypted = cipher.decrypt(nonce.into(), actual_cipher_text).unwrap();
 
-    Ok(decrypted)
+    match cipher.decrypt(nonce.into(), actual_cipher_text) {
+        Ok(decrypted) => Ok(decrypted),
+        _ => Err(SteganoError::CannotDecryptData),
+    }
 }
 
 #[cfg(test)]
@@ -93,6 +84,6 @@ mod tests {
         let decrypted = super::decrypt(ciphertext, key).unwrap();
         let decrypted_msg = std::str::from_utf8(&decrypted[..]).unwrap().to_string();
 
-        assert_ne!(message, decrypted_msg);
+        assert_eq!(message, decrypted_msg);
     }
 }
