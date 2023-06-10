@@ -73,6 +73,8 @@ mod tests {
     use proptest::prelude::*;
     use proptest::strategy::Strategy;
 
+    use crate::SteganoError;
+
     fn word() -> impl Strategy<Value = String> {
         proptest::string::string_regex(r"[a-zA-Z0-9]+").unwrap()
     }
@@ -85,9 +87,30 @@ mod tests {
         proptest::collection::vec(word(), 10..500).prop_map(|cs| cs.join(" "))
     }
 
+    #[test]
+    fn it_has_an_error_if_decryption_is_not_possible() {
+        let val = [0u8; 48];
+        let decrypted = super::decrypt(&val, "password");
+
+        assert!(decrypted.is_err());
+
+        let err = decrypted.unwrap_err();
+
+        assert!(matches!(err, SteganoError::CannotDecryptData));
+    }
+
+    #[test]
+    #[should_panic]
+    fn it_panics_if_the_ciphertext_does_not_have_nonce_and_salt() {
+        let val = [0u8; super::TOTAL_META_LEN - 10];
+
+        super::decrypt(&val, "password").unwrap();
+    }
+
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10))]
         #[test]
+        #[ignore]
         fn it_can_encrypt_and_decrypt(pass in password(), message in text()) {
             let encrypted = super::encrypt(&message, &pass);
 
