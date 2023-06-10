@@ -77,14 +77,18 @@ mod tests {
         proptest::string::string_regex(r"[a-zA-Z0-9]+").unwrap()
     }
 
+    fn password() -> impl Strategy<Value = String> {
+        proptest::collection::vec(word(), 1..15).prop_map(|cs| cs.join(""))
+    }
+
     fn sentence() -> impl Strategy<Value = String> {
-        proptest::collection::vec(word(), 1..10).prop_map(|cs| cs.join(" "))
+        proptest::collection::vec(word(), 10..50).prop_map(|cs| cs.join(" "))
     }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10))]
         #[test]
-        fn it_can_encrypt_and_decrypt(pass in word(), message in sentence()) {
+        fn it_can_encrypt_and_decrypt(pass in password(), message in sentence()) {
             let encrypted = super::encrypt(&message, &pass);
 
             prop_assert!(encrypted.is_ok());
