@@ -24,6 +24,10 @@ pub fn derive_key(password: &str, salt: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn encrypt(message: &str, password: &str) -> Result<Vec<u8>> {
+    if message.len() <= 0 {
+        return Err(SteganoError::CannotEncryptData);
+    }
+
     let mut salt = [0u8; SALT_LEN];
     let mut padding = [0u8; PADDING_LEN];
 
@@ -105,6 +109,20 @@ mod tests {
         let val = [0u8; super::TOTAL_META_LEN - 10];
 
         super::decrypt(&val, "password").unwrap();
+    }
+
+    #[test]
+    fn it_has_an_error_if_an_empty_message_is_passed() {
+        let message = "";
+        let pass = "password";
+
+        let encrypted = super::encrypt(&message, &pass);
+        assert!(encrypted.is_err());
+
+        assert!(matches!(
+            encrypted.unwrap_err(),
+            SteganoError::CannotEncryptData
+        ),);
     }
 
     proptest! {
