@@ -70,20 +70,30 @@ pub fn decrypt(ciphertext: &[u8], password: &str) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_can_encrypt_and_decrypt() {
-        let message = "Testing if this is big enough or if we should create a bigger size";
-        let key = "12345678912345678912345678912345";
-        let encrypted = super::encrypt(message, key);
+    use proptest::prelude::*;
+    use proptest::strategy::Strategy;
 
-        assert!(encrypted.is_ok());
+    fn word() -> impl Strategy<Value = String> {
+        proptest::string::string_regex(r"[a-zA-Z0-9]+").unwrap()
+    }
 
-        let ciphertext = encrypted.as_ref().unwrap();
-        println!("{}", ciphertext.len());
+    fn sentence() -> impl Strategy<Value = String> {
+        proptest::collection::vec(word(), 1..10).prop_map(|cs| cs.join(" "))
+    }
 
-        let decrypted = super::decrypt(ciphertext, key).unwrap();
-        let decrypted_msg = std::str::from_utf8(&decrypted[..]).unwrap().to_string();
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10))]
+        #[test]
+        fn it_can_encrypt_and_decrypt(pass in word(), message in sentence()) {
+            let encrypted = super::encrypt(&message, &pass);
 
-        assert_eq!(message, decrypted_msg);
+            prop_assert!(encrypted.is_ok());
+
+            let ciphertext = encrypted.as_ref().unwrap();
+            let decrypted = super::decrypt(ciphertext, &pass).unwrap();
+            let decrypted_msg = std::str::from_utf8(&decrypted[..]).unwrap().to_string();
+
+            prop_assert_eq!(message, decrypted_msg);
+        }
     }
 }
