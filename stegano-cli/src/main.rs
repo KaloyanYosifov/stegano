@@ -3,7 +3,6 @@ use clap::{crate_authors, crate_description, crate_version, Arg, ArgMatches, Com
 use std::fs;
 use std::path::{Path, PathBuf};
 use stegano_core::commands::{check_files, unveil, unveil_raw};
-use stegano_core::media::image::lsb_codec::CodecOptions;
 use stegano_core::*;
 
 fn main() -> Result<()> {
@@ -12,98 +11,110 @@ fn main() -> Result<()> {
         .author(crate_authors!())
         .about(crate_description!())
         .arg_required_else_help(true)
-        .subcommand(Command::new("hide")
-            .about("Hides data in PNG images and WAV audio files")
-            .arg(
-                Arg::new("media")
-                    .short('i')
-                    .long("in")
-                    .value_name("media file")
-                    .required(true)
-                    .help("Media file such as PNG image or WAV audio file, used readonly."),
-            )
-            .arg(
-                Arg::new("write_to_file")
-                    .short('o')
-                    .long("out")
-                    .value_name("output image file")
-                    .required(true)
-                    .help("Final image will be stored as file"),
-            )
-            .arg(
-                Arg::new("data_file")
-                    .short('d')
-                    .long("data")
-                    .value_name("data file")
-                    .required_unless_present("message")
-                    .num_args(1..100)
-                    .help("File(s) to hide in the image"),
-            )
-            .arg(
-                Arg::new("message")
-                    .short('m')
-                    .long("message")
-                    .value_name("text message")
-                    .required(false)
-                    .help("A text message that will be hidden"),
-            )
-            .arg(
-                Arg::new("force_content_version2")
-                    .long("x-force-content-version-2")
-                    .value_name("text message")
-                    .required(false)
-                    .help("Experimental: enforce content version 2 encoding (for backwards compatibility)"),
-            )
+        .subcommand(
+            Command::new("hide")
+                .about("Hides data in PNG images and WAV audio files")
+                .arg(
+                    Arg::new("media")
+                        .short('i')
+                        .long("in")
+                        .value_name("media file")
+                        .required(true)
+                        .help("Media file such as PNG image or WAV audio file, used readonly."),
+                )
+                .arg(
+                    Arg::new("write_to_file")
+                        .short('o')
+                        .long("out")
+                        .value_name("output image file")
+                        .required(true)
+                        .help("Final image will be stored as file"),
+                )
+                .arg(
+                    Arg::new("data_file")
+                        .short('d')
+                        .long("data")
+                        .value_name("data file")
+                        .required_unless_present("message")
+                        .num_args(1..100)
+                        .help("File(s) to hide in the image"),
+                )
+                .arg(
+                    Arg::new("message")
+                        .short('m')
+                        .long("message")
+                        .value_name("text message")
+                        .required(false)
+                        .help("A text message that will be hidden"),
+                )
+                .arg(
+                    Arg::new("encrypt")
+                        .short('e')
+                        .long("encrypt")
+                        .required(false)
+                        .num_args(0)
+                        .help("Option to encrypt data"),
+                ),
         )
-        .subcommand(Command::new("unveil")
-        .about("Unveils data from PNG images")
-        .arg(
-            Arg::new("input_image")
-                .short('i')
-                .long("in")
-                .value_name("image source file")
-                .required(true)
-                .help("Source image that contains secret data"),
+        .subcommand(
+            Command::new("unveil")
+                .about("Unveils data from PNG images")
+                .arg(
+                    Arg::new("input_image")
+                        .short('i')
+                        .long("in")
+                        .value_name("image source file")
+                        .required(true)
+                        .help("Source image that contains secret data"),
+                )
+                .arg(
+                    Arg::new("output_folder")
+                        .short('o')
+                        .long("out")
+                        .value_name("output folder")
+                        .required(true)
+                        .help("Final data will be stored in that folder"),
+                )
+                .arg(
+                    Arg::new("decrypt")
+                        .short('d')
+                        .long("decrypt")
+                        .required(false)
+                        .num_args(0)
+                        .help("Option to decrypt data"),
+                ),
         )
-        .arg(
-            Arg::new("output_folder")
-                .short('o')
-                .long("out")
-                .value_name("output folder")
-                .required(true)
-                .help("Final data will be stored in that folder"),
+        .subcommand(
+            Command::new("unveil-raw")
+                .about("Unveils raw data in PNG images")
+                .arg(
+                    Arg::new("input_image")
+                        .short('i')
+                        .long("in")
+                        .value_name("image source file")
+                        .required(true)
+                        .help("Source image that contains secret data"),
+                )
+                .arg(
+                    Arg::new("output_file")
+                        .short('o')
+                        .long("out")
+                        .value_name("output file")
+                        .required(true)
+                        .help("Raw data will be stored as binary file"),
+                ),
         )
-    )
-        .subcommand(Command::new("unveil-raw")
-        .about("Unveils raw data in PNG images")
-        .arg(
-            Arg::new("input_image")
-                .short('i')
-                .long("in")
-                .value_name("image source file")
-                .required(true)
-                .help("Source image that contains secret data"),
-        )
-        .arg(
-            Arg::new("output_file")
-                .short('o')
-                .long("out")
-                .value_name("output file")
-                .required(true)
-                .help("Raw data will be stored as binary file"),
-        )
-    )
         .subcommand(
             Command::new("check")
-                    .about("Checks if file or files in directory are secrets")
-                    .arg(
-                        Arg::new("input")
+                .about("Checks if file or files in directory are secrets")
+                .arg(
+                    Arg::new("input")
                         .short('i')
                         .value_name("file or files")
                         .required(true)
-                        .help("Choose files or multiple files")
-                        )
-                    )
+                        .help("Choose files or multiple files"),
+                ),
+        )
         .arg(
             Arg::new("color_step_increment")
                 .long("x-color-step-increment")
@@ -116,22 +127,24 @@ fn main() -> Result<()> {
 
     match matches.subcommand() {
         Some(("hide", m)) => {
-            let mut s = SteganoCore::encoder_with_options(get_options(&matches));
+            let opts = get_hide_options(&m);
+            let codec_options = get_codec_options(CodecOptions::default(), &matches);
+            let mut s = SteganoCore::encoder_with_options(codec_options);
 
             s.use_media(m.get_one::<String>("media").unwrap())?
                 .write_to(m.get_one::<String>("write_to_file").unwrap());
 
             if let Some(msg) = m.get_one::<String>("message") {
-                s.hide_message(msg);
+                s.hide_message(msg, &opts);
             }
 
             if let Some(files) = m.get_many::<String>("data_file") {
-                s.hide_files(files.map(|f| &**f).collect());
+                s.hide_files(files.map(|f| &**f).collect(), &opts);
             }
 
-            if m.contains_id("force_content_version2") {
-                s.force_content_version(ContentVersion::V2);
-            }
+            // if m.contains_id("force_content_version2") {
+            //     s.force_content_version(ContentVersion::V2);
+            // }
 
             s.hide();
         }
@@ -139,7 +152,7 @@ fn main() -> Result<()> {
             unveil(
                 Path::new(m.get_one::<String>("input_image").unwrap()),
                 Path::new(m.get_one::<String>("output_folder").unwrap()),
-                &get_options(&matches),
+                &get_unveil_options(&m),
             )?;
         }
         Some(("unveil-raw", m)) => {
@@ -184,14 +197,34 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn get_options(args: &ArgMatches) -> CodecOptions {
-    let mut c = CodecOptions::default();
+fn get_hide_options(args: &ArgMatches) -> HideOptions {
+    let mut opts = HideOptions::default();
+
+    if *args.get_one::<bool>("encrypt").unwrap() {
+        opts.encrypt = true;
+    }
+
+    opts
+}
+
+fn get_unveil_options(args: &ArgMatches) -> UnveilOptions {
+    let mut opts = UnveilOptions::default();
+    // opts.codec_options = get_codec_options(opts.codec_options, args);
+
+    if *args.get_one::<bool>("decrypt").unwrap() {
+        opts.decrypt = true;
+    }
+
+    opts
+}
+
+fn get_codec_options(mut opts: CodecOptions, args: &ArgMatches) -> CodecOptions {
     if args.contains_id("color_step_increment") {
-        c.color_channel_step_increment = args
+        opts.color_channel_step_increment = args
             .get_one::<String>("color_step_increment")
             .unwrap()
             .parse()
             .unwrap();
     }
-    c
+    opts
 }

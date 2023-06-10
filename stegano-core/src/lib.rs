@@ -22,7 +22,7 @@
 //! ## Unveil data from an image
 //!
 //! ```rust
-//! use stegano_core::{SteganoCore, SteganoEncoder, CodecOptions};
+//! use stegano_core::{SteganoCore, SteganoEncoder, CodecOptions, UnveilOptions};
 //! use stegano_core::commands::unveil;
 //! use std::path::Path;
 //!
@@ -35,7 +35,7 @@
 //! unveil(
 //!     &Path::new("image-with-a-file-inside.png"),
 //!     &Path::new("./"),
-//!     &CodecOptions::default());
+//!     &UnveilOptions::default());
 //! ```
 //!
 //! [core]: ./struct.SteganoCore.html
@@ -84,6 +84,7 @@ pub mod media;
 pub mod universal_decoder;
 pub mod universal_encoder;
 
+use crypto::EncryptDecrypt;
 use hound::{WavReader, WavSpec, WavWriter};
 use image::RgbaImage;
 use std::default::Default;
@@ -92,6 +93,32 @@ use std::path::Path;
 use thiserror::Error;
 
 pub use crate::media::image::CodecOptions;
+
+#[derive(Debug)]
+pub struct UnveilOptions {
+    pub decrypt: bool,
+    pub codec_options: CodecOptions,
+}
+
+impl Default for UnveilOptions {
+    fn default() -> Self {
+        Self {
+            decrypt: false,
+            codec_options: CodecOptions::default(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct HideOptions {
+    pub encrypt: bool,
+}
+
+impl Default for HideOptions {
+    fn default() -> Self {
+        Self { encrypt: false }
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum SteganoError {
@@ -298,6 +325,18 @@ impl Default for SteganoEncoder {
 }
 
 impl SteganoEncoder {
+    fn ask_for_password() -> String {
+        let password = rpassword::prompt_password("Please enter encryption password!: ").unwrap();
+        let confirm_password =
+            rpassword::prompt_password("Please confirm encryption password: ").unwrap();
+
+        assert_eq!(password, confirm_password, "Passwords do not match!");
+
+        password
+    }
+}
+
+impl SteganoEncoder {
     pub fn new() -> Self {
         Self::default()
     }
@@ -320,14 +359,21 @@ impl SteganoEncoder {
         self
     }
 
-    pub fn hide_message(&mut self, msg: &str) -> &mut Self {
-        self.message
-            .add_file_data("message.txt", msg.as_bytes().to_vec());
+    pub fn hide_message(&mut self, msg: &str, opts: &HideOptions) -> &mut Self {
+        let mut data = msg.as_bytes().to_vec();
+
+        if opts.encrypt {
+            let password = Self::ask_for_password();
+
+            data = data.encrypt(&password).unwrap();
+        }
+
+        self.message.add_file_data("message.txt", data);
 
         self
     }
 
-    pub fn hide_file(&mut self, input_file: &str) -> &mut Self {
+    pub fn hide_file(&mut self, input_file: &str, opts: &HideOptions) -> &mut Self {
         {
             let _f = File::open(input_file).expect("Data file was not readable.");
         }
@@ -336,10 +382,10 @@ impl SteganoEncoder {
         self
     }
 
-    pub fn hide_files(&mut self, input_files: Vec<&str>) -> &mut Self {
+    pub fn hide_files(&mut self, input_files: Vec<&str>, opts: &HideOptions) -> &mut Self {
         self.message.files = Vec::new();
         input_files.iter().for_each(|&f| {
-            self.hide_file(f);
+            self.hide_file(f, opts);
         });
 
         self
@@ -390,13 +436,13 @@ mod e2e_tests {
     #[test]
     #[should_panic(expected = "Data file was not readable.")]
     fn should_panic_on_invalid_data_file() {
-        SteganoEncoder::new().hide_file("foofile");
+        SteganoEncoder::new().hide_file("foofile", &HideOptions::default());
     }
 
     #[test]
     #[should_panic(expected = "Data file was not readable.")]
     fn should_panic_on_invalid_data_file_among_valid() {
-        SteganoEncoder::new().hide_files(vec!["Cargo.toml", "foofile"]);
+        SteganoEncoder::new().hide_files(vec!["Cargo.toml", "foofile"], &HideOptions::default());
     }
 
     #[test]
@@ -443,7 +489,7 @@ mod e2e_tests {
         let secret_media_f = secret_media_p.to_str().unwrap();
 
         SteganoEncoder::new()
-            .hide_file("Cargo.toml")
+            .hide_file("Cargo.toml", &HideOptions::default())
             .use_media("../resources/plain/carrier-audio.wav")?
             .write_to(secret_media_f)
             .hide();
@@ -456,7 +502,7 @@ mod e2e_tests {
         unveil(
             secret_media_p.as_path(),
             out_dir.path(),
-            &CodecOptions::default(),
+            &UnveilOptions::default(),
         )?;
 
         let given_decoded_secret = out_dir.path().join("Cargo.toml");
@@ -476,7 +522,7 @@ mod e2e_tests {
         let image_with_secret = image_with_secret_path.to_str().unwrap();
 
         SteganoEncoder::new()
-            .hide_file("Cargo.toml")
+            .hide_file("Cargo.toml", &HideOptions::default())
             .use_media("../resources/with_text/hello_world.png")?
             .write_to(image_with_secret)
             .hide();
@@ -489,7 +535,7 @@ mod e2e_tests {
         unveil(
             image_with_secret_path.as_path(),
             out_dir.path(),
-            &CodecOptions::default(),
+            &UnveilOptions::default(),
         )?;
 
         let given_decoded_secret = out_dir.path().join("Cargo.toml");
@@ -532,7 +578,7 @@ mod e2e_tests {
         let expected_file = out_dir.path().join("random_1666_byte.bin");
 
         SteganoEncoder::new()
-            .hide_file(secret_to_hide)
+            .hide_file(secret_to_hide, &HideOptions::default())
             .use_media(BASE_IMAGE)?
             .write_to(image_with_secret)
             .hide();
@@ -545,7 +591,7 @@ mod e2e_tests {
         unveil(
             image_with_secret_path.as_path(),
             out_dir.path(),
-            &CodecOptions::default(),
+            &UnveilOptions::default(),
         )?;
         assert_eq_file_content(
             &expected_file,
@@ -565,7 +611,7 @@ mod e2e_tests {
         let expected_file = out_dir.path().join("zip_with_2_files.zip");
 
         SteganoEncoder::new()
-            .hide_file(secret_to_hide)
+            .hide_file(secret_to_hide, &HideOptions::default())
             .use_media(BASE_IMAGE)?
             .write_to(image_with_secret)
             .hide();
@@ -575,7 +621,7 @@ mod e2e_tests {
         unveil(
             image_with_secret_path.as_path(),
             out_dir.path(),
-            &CodecOptions::default(),
+            &UnveilOptions::default(),
         )?;
 
         assert_eq_file_content(
@@ -595,7 +641,7 @@ mod e2e_tests {
         unveil(
             Path::new("../resources/with_attachment/Blah.txt.png"),
             out_dir.path(),
-            &CodecOptions::default(),
+            &UnveilOptions::default(),
         )?;
 
         assert_eq_file_content(
@@ -616,7 +662,7 @@ mod e2e_tests {
         unveil(
             Path::new("../resources/with_attachment/Blah.txt__and__Blah-2.txt.png"),
             out_dir.path(),
-            &CodecOptions::default(),
+            &UnveilOptions::default(),
         )?;
         assert_eq_file_content(
             &decoded_secret_1,
@@ -643,7 +689,7 @@ mod e2e_tests {
         SteganoEncoder::new()
             .force_content_version(ContentVersion::V2)
             .use_media(BASE_IMAGE)?
-            .hide_file(secret_to_hide)
+            .hide_file(secret_to_hide, &HideOptions::default())
             .write_to(image_with_secret)
             .hide();
 
@@ -652,7 +698,7 @@ mod e2e_tests {
         unveil(
             image_with_secret_path.as_path(),
             out_dir.path(),
-            &CodecOptions::default(),
+            &UnveilOptions::default(),
         )?;
 
         let decoded_secret = out_dir.path().join("Blah.txt");

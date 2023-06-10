@@ -1,7 +1,8 @@
+use crate::crypto::EncryptDecrypt;
 use crate::media::audio::wav_iter::AudioWavIter;
 use crate::media::image::LsbCodec;
 use crate::universal_decoder::{Decoder, OneBitUnveil};
-use crate::{CodecOptions, Media, Message, RawMessage, SteganoError};
+use crate::{CodecOptions, Media, Message, RawMessage, SteganoError, UnveilOptions};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
@@ -9,13 +10,13 @@ use std::path::Path;
 pub fn unveil(
     secret_media: &Path,
     destination: &Path,
-    opts: &CodecOptions,
+    opts: &UnveilOptions,
 ) -> Result<(), SteganoError> {
     let media = Media::from_file(secret_media)?;
 
-    let files = match media {
+    let mut files = match media {
         Media::Image(image) => {
-            let mut decoder = LsbCodec::decoder(&image, opts);
+            let mut decoder = LsbCodec::decoder(&image, &opts.codec_options);
             let msg = Message::of(&mut decoder);
             let mut files = msg.files;
 
@@ -41,6 +42,15 @@ pub fn unveil(
 
     if files.is_empty() {
         return Err(SteganoError::NoSecretData);
+    }
+
+    if opts.decrypt {
+        let password = rpassword::prompt_password("Enter decryption password: ").unwrap();
+
+        files = files
+            .iter()
+            .map(|(name, data)| (name.clone(), data.decrypt(&password).unwrap()))
+            .collect();
     }
 
     for (file_name, buf) in files.iter().map(|(file_name, buf)| {

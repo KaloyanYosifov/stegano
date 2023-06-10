@@ -14,7 +14,7 @@ const NONCE_AND_SALT_LEN: usize = NONCE_LEN + SALT_LEN;
 const PADDING_LEN: usize = BLOCK_SIZE - (NONCE_AND_SALT_LEN % BLOCK_SIZE);
 const TOTAL_META_LEN: usize = NONCE_AND_SALT_LEN + PADDING_LEN;
 
-pub fn derive_key(password: &str, salt: &[u8]) -> Result<Vec<u8>> {
+fn derive_key(password: &str, salt: &[u8]) -> Result<Vec<u8>> {
     let mut key = [0; DEFAULT_KEY_LEN];
 
     match Argon2::default().hash_password_into(password.as_bytes(), &salt, &mut key) {
@@ -23,7 +23,7 @@ pub fn derive_key(password: &str, salt: &[u8]) -> Result<Vec<u8>> {
     }
 }
 
-pub fn encrypt(message: &str, password: &str) -> Result<Vec<u8>> {
+fn encrypt(message: &[u8], password: &str) -> Result<Vec<u8>> {
     if message.len() <= 0 {
         return Err(SteganoError::CannotEncryptData);
     }
@@ -40,7 +40,7 @@ pub fn encrypt(message: &str, password: &str) -> Result<Vec<u8>> {
 
     assert_eq!(NONCE_LEN, nonce.len());
 
-    match cipher.encrypt(&nonce, message.as_bytes()) {
+    match cipher.encrypt(&nonce, message) {
         Ok(ciphertext) => {
             let ciphertext_len = ciphertext.len();
             let new_ciphertext_len = ciphertext_len + TOTAL_META_LEN;
@@ -59,7 +59,7 @@ pub fn encrypt(message: &str, password: &str) -> Result<Vec<u8>> {
     }
 }
 
-pub fn decrypt(ciphertext: &[u8], password: &str) -> Result<Vec<u8>> {
+fn decrypt(ciphertext: &[u8], password: &str) -> Result<Vec<u8>> {
     let nonce = &ciphertext[PADDING_LEN..NONCE_LEN + PADDING_LEN];
     let salt = &ciphertext[NONCE_LEN + PADDING_LEN..TOTAL_META_LEN];
     let actual_cipher_text = &ciphertext[TOTAL_META_LEN..];
@@ -72,8 +72,76 @@ pub fn decrypt(ciphertext: &[u8], password: &str) -> Result<Vec<u8>> {
     }
 }
 
+type EncryptDecryptResult = Result<Vec<u8>>;
+
+pub trait EncryptDecrypt {
+    fn encrypt(&self, password: &str) -> EncryptDecryptResult;
+    fn decrypt(&self, password: &str) -> EncryptDecryptResult;
+}
+
+impl EncryptDecrypt for Vec<u8> {
+    fn encrypt(&self, password: &str) -> EncryptDecryptResult {
+        encrypt(&self[..], password)
+    }
+
+    fn decrypt(&self, password: &str) -> EncryptDecryptResult {
+        decrypt(&self[..], password)
+    }
+}
+
+impl EncryptDecrypt for &Vec<u8> {
+    fn encrypt(&self, password: &str) -> EncryptDecryptResult {
+        encrypt(&self[..], password)
+    }
+
+    fn decrypt(&self, password: &str) -> EncryptDecryptResult {
+        decrypt(&self[..], password)
+    }
+}
+
+impl EncryptDecrypt for &[u8] {
+    fn encrypt(&self, password: &str) -> EncryptDecryptResult {
+        encrypt(self, password)
+    }
+
+    fn decrypt(&self, password: &str) -> EncryptDecryptResult {
+        decrypt(self, password)
+    }
+}
+
+impl EncryptDecrypt for [u8] {
+    fn encrypt(&self, password: &str) -> EncryptDecryptResult {
+        encrypt(self, password)
+    }
+
+    fn decrypt(&self, password: &str) -> EncryptDecryptResult {
+        decrypt(self, password)
+    }
+}
+
+impl EncryptDecrypt for &str {
+    fn encrypt(&self, password: &str) -> EncryptDecryptResult {
+        encrypt(self.as_bytes(), password)
+    }
+
+    fn decrypt(&self, password: &str) -> EncryptDecryptResult {
+        decrypt(self.as_bytes(), password)
+    }
+}
+
+impl EncryptDecrypt for String {
+    fn encrypt(&self, password: &str) -> EncryptDecryptResult {
+        encrypt(self.as_bytes(), password)
+    }
+
+    fn decrypt(&self, password: &str) -> EncryptDecryptResult {
+        decrypt(self.as_bytes(), password)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
     use proptest::prelude::*;
     use proptest::strategy::Strategy;
 
@@ -94,7 +162,7 @@ mod tests {
     #[test]
     fn it_has_an_error_if_decryption_is_not_possible() {
         let val = [0u8; 48];
-        let decrypted = super::decrypt(&val, "password");
+        let decrypted = val.decrypt("password");
 
         assert!(decrypted.is_err());
 
@@ -108,7 +176,7 @@ mod tests {
     fn it_panics_if_the_ciphertext_does_not_have_nonce_and_salt() {
         let val = [0u8; super::TOTAL_META_LEN - 10];
 
-        super::decrypt(&val, "password").unwrap();
+        val.decrypt("password").unwrap();
     }
 
     #[test]
@@ -116,7 +184,7 @@ mod tests {
         let message = "";
         let pass = "password";
 
-        let encrypted = super::encrypt(&message, &pass);
+        let encrypted = message.encrypt(&pass);
         assert!(encrypted.is_err());
 
         assert!(matches!(
@@ -130,12 +198,12 @@ mod tests {
         #[test]
         #[ignore]
         fn it_can_encrypt_and_decrypt(pass in password(), message in text()) {
-            let encrypted = super::encrypt(&message, &pass);
+            let encrypted = &message.as_bytes().encrypt(&pass);
 
             prop_assert!(encrypted.is_ok());
 
             let ciphertext = encrypted.as_ref().unwrap();
-            let decrypted = super::decrypt(ciphertext, &pass).unwrap();
+            let decrypted = ciphertext.decrypt(&pass).unwrap();
             let decrypted_msg = std::str::from_utf8(&decrypted[..]).unwrap().to_string();
 
             prop_assert_eq!(message, decrypted_msg);
