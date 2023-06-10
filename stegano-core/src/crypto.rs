@@ -108,7 +108,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(10))]
+        #![proptest_config(ProptestConfig::with_cases(20))]
         #[test]
         #[ignore]
         fn it_can_encrypt_and_decrypt(pass in password(), message in text()) {
