@@ -81,14 +81,14 @@ mod tests {
         proptest::collection::vec(word(), 1..100).prop_map(|cs| cs.join(""))
     }
 
-    fn sentence() -> impl Strategy<Value = String> {
+    fn text() -> impl Strategy<Value = String> {
         proptest::collection::vec(word(), 10..500).prop_map(|cs| cs.join(" "))
     }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10))]
         #[test]
-        fn it_can_encrypt_and_decrypt(pass in password(), message in sentence()) {
+        fn it_can_encrypt_and_decrypt(pass in password(), message in text()) {
             let encrypted = super::encrypt(&message, &pass);
 
             prop_assert!(encrypted.is_ok());
