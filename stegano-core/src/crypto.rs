@@ -78,11 +78,11 @@ mod tests {
     }
 
     fn password() -> impl Strategy<Value = String> {
-        proptest::collection::vec(word(), 1..15).prop_map(|cs| cs.join(""))
+        proptest::collection::vec(word(), 1..100).prop_map(|cs| cs.join(""))
     }
 
     fn sentence() -> impl Strategy<Value = String> {
-        proptest::collection::vec(word(), 10..50).prop_map(|cs| cs.join(" "))
+        proptest::collection::vec(word(), 10..500).prop_map(|cs| cs.join(" "))
     }
 
     proptest! {
