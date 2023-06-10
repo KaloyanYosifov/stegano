@@ -135,6 +135,10 @@ pub enum SteganoError {
     #[error("Failed to encrypt data")]
     CannotEncryptData,
 
+    /// Represents a failure when trying to encrypt or derive a key
+    #[error("Failed to decrypt data")]
+    CannotDecryptData,
+
     /// Represents all other cases of `std::io::Error`.
     #[error(transparent)]
     IoError(#[from] std::io::Error),

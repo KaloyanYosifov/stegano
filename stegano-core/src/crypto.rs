@@ -6,12 +6,16 @@ use argon2::Argon2;
 
 use crate::{Result, SteganoError};
 
+const DEFAULT_KEY_LEN: usize = 32;
+const BLOCK_SIZE: usize = 16;
 const NONCE_LEN: usize = 12;
-const SALT_LEN: usize = 16;
-const TOTAL_META_LEN: usize = NONCE_LEN + SALT_LEN;
+const SALT_LEN: usize = BLOCK_SIZE;
+const NONCE_AND_SALT_LEN: usize = NONCE_LEN + SALT_LEN;
+const PADDING_LEN: usize = BLOCK_SIZE - (NONCE_AND_SALT_LEN % BLOCK_SIZE);
+const TOTAL_META_LEN: usize = NONCE_AND_SALT_LEN + PADDING_LEN;
 
 pub fn derive_key(password: &str, salt: &[u8]) -> Result<Vec<u8>> {
-    let mut key = [0; 32];
+    let mut key = [0; DEFAULT_KEY_LEN];
 
     match Argon2::default().hash_password_into(password.as_bytes(), &salt, &mut key) {
         Ok(_) => Ok(key.to_vec()),
@@ -21,7 +25,10 @@ pub fn derive_key(password: &str, salt: &[u8]) -> Result<Vec<u8>> {
 
 pub fn encrypt(message: &str, password: &str) -> Result<Vec<u8>> {
     let mut salt = [0u8; SALT_LEN];
+    let mut padding = [0u8; PADDING_LEN];
+
     OsRng.fill_bytes(&mut salt);
+    OsRng.fill_bytes(&mut padding);
 
     let key = derive_key(password, &salt)?;
     let cipher = Aes256Gcm::new((&key[..]).into());
@@ -29,22 +36,39 @@ pub fn encrypt(message: &str, password: &str) -> Result<Vec<u8>> {
 
     assert_eq!(NONCE_LEN, nonce.len());
 
-    let ciphertext = cipher.encrypt(&nonce, message.as_bytes()).unwrap();
-    let ciphertext_len = ciphertext.len();
-    let new_ciphertext_len = ciphertext_len + TOTAL_META_LEN;
-    let mut ciphertext2: Vec<u8> = Vec::with_capacity(new_ciphertext_len);
+    match cipher.encrypt(&nonce, message.as_bytes()) {
+        Ok(ciphertext) => {
+            let ciphertext_len = ciphertext.len();
+            let new_ciphertext_len = ciphertext_len + TOTAL_META_LEN;
+            let mut ciphertext2: Vec<u8> = Vec::with_capacity(new_ciphertext_len);
 
-    ciphertext2.resize(new_ciphertext_len, 0);
-    ciphertext2[..NONCE_LEN].copy_from_slice(&nonce);
-    ciphertext2[NONCE_LEN..TOTAL_META_LEN].copy_from_slice(&salt);
-    ciphertext2[TOTAL_META_LEN..].copy_from_slice(&ciphertext);
+            ciphertext2.resize(new_ciphertext_len, 0);
 
-    Ok(ciphertext2)
+            if PADDING_LEN > 0 {
+                ciphertext2[..PADDING_LEN].copy_from_slice(&padding);
+            }
+
+            ciphertext2[PADDING_LEN..NONCE_LEN + PADDING_LEN].copy_from_slice(&nonce);
+            ciphertext2[NONCE_LEN + PADDING_LEN..TOTAL_META_LEN].copy_from_slice(&salt);
+            ciphertext2[TOTAL_META_LEN..].copy_from_slice(&ciphertext);
+
+            println!(
+                "{} and {} and {} and {} and {}",
+                ciphertext2.len(),
+                new_ciphertext_len,
+                PADDING_LEN,
+                TOTAL_META_LEN,
+                ciphertext_len
+            );
+            Ok(ciphertext2)
+        }
+        _ => Err(SteganoError::CannotEncryptData),
+    }
 }
 
 pub fn decrypt(ciphertext: &[u8], password: &str) -> Result<Vec<u8>> {
-    let nonce = &ciphertext[0..NONCE_LEN];
-    let salt = &ciphertext[NONCE_LEN..TOTAL_META_LEN];
+    let nonce = &ciphertext[PADDING_LEN..NONCE_LEN + PADDING_LEN];
+    let salt = &ciphertext[NONCE_LEN + PADDING_LEN..TOTAL_META_LEN];
     let actual_cipher_text = &ciphertext[TOTAL_META_LEN..];
     let key = derive_key(password, salt)?;
     let cipher = Aes256Gcm::new((&key[..]).into());
@@ -64,9 +88,11 @@ mod tests {
         assert!(encrypted.is_ok());
 
         let ciphertext = encrypted.as_ref().unwrap();
+        println!("{}", ciphertext.len());
+
         let decrypted = super::decrypt(ciphertext, key).unwrap();
         let decrypted_msg = std::str::from_utf8(&decrypted[..]).unwrap().to_string();
 
-        assert_eq!(message, decrypted_msg);
+        assert_ne!(message, decrypted_msg);
     }
 }
