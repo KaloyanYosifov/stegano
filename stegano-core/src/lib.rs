@@ -288,13 +288,13 @@ impl Hide for Media {
         opts: &CodecOptions,
         hide_opts: &HideOptions,
     ) -> Result<&mut Media> {
-        let mut buf: Vec<u8> = message.into();
+        let mut password = None;
 
         if hide_opts.encrypt {
-            let password = ask_for_password();
-
-            buf = buf.encrypt(&password).unwrap();
+            password = Some(ask_for_password());
         }
+
+        let buf = message.get_data(password)?;
 
         match self {
             Media::Image(i) => {

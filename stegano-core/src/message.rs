@@ -4,6 +4,7 @@ use std::io::{Cursor, Read};
 use std::path::Path;
 
 use crate::crypto::EncryptDecrypt;
+use crate::Result;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum ContentVersion {
@@ -172,11 +173,9 @@ impl Message {
 
         m
     }
-}
 
-impl From<&Message> for Vec<u8> {
-    fn from(m: &Message) -> Vec<u8> {
-        let mut v = vec![m.header.to_u8()];
+    pub fn get_data(&self, password: MessagePassword) -> Result<Vec<u8>> {
+        let mut v = vec![self.header.to_u8()];
 
         {
             let mut buf = Vec::new();
@@ -188,7 +187,7 @@ impl From<&Message> for Vec<u8> {
                 let options = zip::write::FileOptions::default()
                     .compression_method(zip::CompressionMethod::Deflated);
 
-                (m.files)
+                (self.files)
                     .iter()
                     .map(|(name, buf)| (name, buf))
                     .for_each(|(name, buf)| {
@@ -203,20 +202,30 @@ impl From<&Message> for Vec<u8> {
                 zip.finish().expect("finish zip failed.");
             }
 
-            if m.header == ContentVersion::V4 {
+            if let Some(pass) = password {
+                buf = buf.encrypt(&pass)?;
+            }
+
+            if self.header == ContentVersion::V4 {
                 v.write_u32::<BigEndian>(buf.len() as u32)
                     .expect("Failed to write the inner message size.");
             }
 
             v.append(&mut buf);
 
-            if m.header == ContentVersion::V2 {
+            if self.header == ContentVersion::V2 {
                 v.write_u16::<BigEndian>(0xffff)
                     .expect("Failed to write content format 2 termination.");
             }
         }
 
-        v
+        Ok(v)
+    }
+}
+
+impl From<&Message> for Vec<u8> {
+    fn from(m: &Message) -> Vec<u8> {
+        m.get_data(None).unwrap()
     }
 }
 
