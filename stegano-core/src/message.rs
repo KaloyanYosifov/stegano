@@ -127,7 +127,7 @@ impl Message {
         const EOF: u8 = 0xff;
         let mut buf = Vec::new();
         r.read_to_end(&mut buf)
-            .expect("Message read of content version 0x04 failed.");
+            .expect("Message read of content version 0x02 failed.");
 
         let mut eof = 0;
         for (i, b) in buf.iter().enumerate().rev() {

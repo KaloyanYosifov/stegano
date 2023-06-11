@@ -398,21 +398,8 @@ impl SteganoEncoder {
     }
 
     pub fn hide(&mut self) -> &Self {
-        {
-            // TODO this hack needs to be implemented as well :(
-            // if self.message.header == ContentVersion::V2 {
-            //     space_to_fill -= buf.len();
-            //
-            //     for _ in 0..space_to_fill {
-            //         dec.write_all(&[0])
-            //             .expect("Failed to terminate version 2 content.");
-            //     }
-            // }
-        }
-
         if let Some(media) = self.carrier.as_mut() {
             media
-                // .hide_message(&self.message)
                 .hide_message_with_options(&self.message, &self.options)
                 .expect("Failed to hide message in media")
                 .save_as(Path::new(self.target.as_ref().unwrap()))
