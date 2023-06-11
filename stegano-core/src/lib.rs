@@ -10,10 +10,10 @@
 //! ## Hide data inside an image
 //!
 //! ```rust
-//! use stegano_core::{SteganoCore, SteganoEncoder};
+//! use stegano_core::{SteganoCore, SteganoEncoder, HideOptions};
 //!
 //! SteganoCore::encoder()
-//!     .hide_file("Cargo.toml")
+//!     .hide_file("Cargo.toml", &HideOptions::default())
 //!     .use_media("../resources/plain/carrier-image.png").unwrap()
 //!     .write_to("image-with-a-file-inside.png")
 //!     .hide();
@@ -22,12 +22,12 @@
 //! ## Unveil data from an image
 //!
 //! ```rust
-//! use stegano_core::{SteganoCore, SteganoEncoder, CodecOptions, UnveilOptions};
+//! use stegano_core::{SteganoCore, SteganoEncoder, CodecOptions, HideOptions, UnveilOptions};
 //! use stegano_core::commands::unveil;
 //! use std::path::Path;
 //!
 //! SteganoCore::encoder()
-//!     .hide_file("Cargo.toml")
+//!     .hide_file("Cargo.toml", &HideOptions::default())
 //!     .use_media("../resources/plain/carrier-image.png").unwrap()
 //!     .write_to("image-with-a-file-inside.png")
 //!     .hide();
