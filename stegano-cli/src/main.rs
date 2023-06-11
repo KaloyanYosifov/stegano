@@ -135,18 +135,18 @@ fn main() -> Result<()> {
                 .write_to(m.get_one::<String>("write_to_file").unwrap());
 
             if let Some(msg) = m.get_one::<String>("message") {
-                s.hide_message(msg, &opts);
+                s.hide_message(msg);
             }
 
             if let Some(files) = m.get_many::<String>("data_file") {
-                s.hide_files(files.map(|f| &**f).collect(), &opts);
+                s.hide_files(files.map(|f| &**f).collect());
             }
 
             // if m.contains_id("force_content_version2") {
             //     s.force_content_version(ContentVersion::V2);
             // }
 
-            s.hide();
+            s.hide(&opts);
         }
         Some(("unveil", m)) => {
             unveil(

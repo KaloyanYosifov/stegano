@@ -13,11 +13,16 @@ pub fn unveil(
     opts: &UnveilOptions,
 ) -> Result<(), SteganoError> {
     let media = Media::from_file(secret_media)?;
+    let mut password = None;
 
-    let mut files = match media {
+    if opts.decrypt {
+        password = Some(rpassword::prompt_password("Enter decryption password: ").unwrap());
+    }
+
+    let files = match media {
         Media::Image(image) => {
             let mut decoder = LsbCodec::decoder(&image, &opts.codec_options);
-            let msg = Message::of(&mut decoder);
+            let msg = Message::of(&mut decoder, password);
             let mut files = msg.files;
 
             if let Some(text) = msg.text {
@@ -29,7 +34,7 @@ pub fn unveil(
         Media::Audio(audio) => {
             let mut decoder = Decoder::new(AudioWavIter::new(audio.1.into_iter()), OneBitUnveil);
 
-            let msg = Message::of(&mut decoder);
+            let msg = Message::of(&mut decoder, password);
             let mut files = msg.files;
 
             if let Some(text) = msg.text {
@@ -42,15 +47,6 @@ pub fn unveil(
 
     if files.is_empty() {
         return Err(SteganoError::NoSecretData);
-    }
-
-    if opts.decrypt {
-        let password = rpassword::prompt_password("Enter decryption password: ").unwrap();
-
-        files = files
-            .iter()
-            .map(|(name, data)| (name.clone(), data.decrypt(&password).unwrap()))
-            .collect();
     }
 
     for (file_name, buf) in files.iter().map(|(file_name, buf)| {
