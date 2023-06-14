@@ -84,7 +84,6 @@ pub mod media;
 pub mod universal_decoder;
 pub mod universal_encoder;
 
-use crypto::EncryptDecrypt;
 use hound::{WavReader, WavSpec, WavWriter};
 use image::RgbaImage;
 use std::default::Default;

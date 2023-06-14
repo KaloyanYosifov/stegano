@@ -1,4 +1,3 @@
-use crate::crypto::EncryptDecrypt;
 use crate::media::audio::wav_iter::AudioWavIter;
 use crate::media::image::LsbCodec;
 use crate::universal_decoder::{Decoder, OneBitUnveil};
