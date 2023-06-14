@@ -167,6 +167,16 @@ impl Message {
         m
     }
 
+    // in Bytes
+    pub fn get_header_length(&self) -> usize {
+        let version_size = 1;
+
+        match self.header {
+            ContentVersion::V4 => version_size + 4,
+            _ => version_size,
+        }
+    }
+
     pub fn get_data(&self, password: MessagePassword) -> Result<Vec<u8>> {
         let mut v = vec![self.header.to_u8()];
 
@@ -219,75 +229,67 @@ impl Message {
 #[cfg(test)]
 mod message_tests {
     use super::*;
+    use std::fs;
     use std::io::copy;
     use zip::write::FileOptions;
     use zip::{CompressionMethod, ZipWriter};
 
+    fn get_file_content_from_zip(buf: &[u8]) -> Option<Vec<u8>> {
+        let mut cursor = Cursor::new(buf);
+        let stream = zip::read::read_zipfile_from_stream(&mut cursor);
+
+        match stream {
+            Ok(Some(mut file)) => {
+                let mut writer = Vec::new();
+                file.read_to_end(&mut writer)
+                    .expect("Failed to read data from inner message structure.");
+
+                Some(writer)
+            }
+            _ => None,
+        }
+    }
+
     #[test]
-    fn should_convert_into_vec_of_bytes() {
+    fn should_create_a_message() {
         let files = vec!["../resources/with_text/hello_world.png".to_string()];
-        let m = Message::new_of_files(&files);
+        let message = Message::new_of_files(&files);
 
         assert_eq!(
-            m.files.len(),
+            message.files.len(),
             1,
             "One file was not there, buffer was broken"
         );
-        let (name, _buf) = &m.files[0];
+        let (name, _buf) = &message.files[0];
         assert_eq!(
             name, "hello_world.png",
             "One file was not there, buffer was broken"
         );
 
-        let b: Vec<u8> = m.get_data(None).unwrap();
-        assert_ne!(b.len(), 0, "File buffer was empty");
+        let buffer: Vec<u8> = message.get_data(None).unwrap();
+        assert_ne!(buffer.len(), 0, "File buffer was empty");
     }
 
     #[test]
-    fn should_convert_from_vec_of_bytes() {
+    fn should_create_a_message_with_correct_data_from_added_files() {
         let files = vec!["../resources/with_text/hello_world.png".to_string()];
-        let m = Message::new_of_files(&files);
-        let b: Vec<u8> = m.get_data(None).unwrap();
-        let mut b_cursor = Cursor::new(b);
+        let message = Message::new_of_files(&files);
+        let mut buffer: Vec<u8> = message.get_data(None).unwrap();
+        let file_contents = fs::read(Path::new(&files[0])).unwrap();
 
-        let m = Message::of(&mut b_cursor, None);
-        assert_eq!(
-            m.files.len(),
-            1,
-            "One file was not there, buffer was broken"
-        );
-        let (name, _buf) = &m.files[0];
-        assert_eq!(
-            name, "hello_world.png",
-            "One file was not there, buffer was broken"
-        );
+        buffer = get_file_content_from_zip(&buffer[message.get_header_length()..]).unwrap();
+
+        assert_eq!(file_contents.len(), buffer.len());
+        for i in 0..buffer.len() {
+            assert_eq!(file_contents[i], buffer[i])
+        }
     }
 
     #[test]
-    fn should_instantiate_from_read_trait() {
-        let files = vec!["../resources/with_text/hello_world.png".to_string()];
-        let m = Message::new_of_files(&files);
-        let mut b: Vec<u8> = m.get_data(None).unwrap();
-        let mut r = Cursor::new(&mut b);
-
-        let m = Message::of(&mut r, None);
-        assert_eq!(
-            m.files.len(),
-            1,
-            "One file was not there, buffer was broken"
-        );
-        let (name, _buf) = &m.files[0];
-        assert_eq!(
-            name, "hello_world.png",
-            "One file was not there, buffer was broken"
-        );
-    }
-
-    #[test]
-    fn should_create_zip_that_is_windows_compatible() -> std::io::Result<()> {
-        let mut file = File::open("../resources/with_text/hello_world.png")?;
+    fn should_create_zip_that_is_windows_compatible() {
+        let mut file = File::open("../resources/with_text/hello_world.png").unwrap();
         let mut buf = Vec::new();
-        file.read_to_end(&mut buf)?;
+        file.read_to_end(&mut buf).unwrap();
 
         let mut out_buf = Vec::new();
 
@@ -303,7 +305,28 @@ mod message_tests {
         copy(&mut r, &mut zip).expect("Failed to copy data to the zip entry.");
 
         zip.finish().expect("finish zip failed.");
+    }
 
-        Ok(())
+    #[test]
+    fn should_create_a_zip_that_is_encrypted() {
+        let files = vec!["../resources/with_text/hello_world.png".to_string()];
+        let pass = "test";
+        let message = Message::new_of_files(&files);
+        let mut buffer: Vec<u8> = message.get_data(Some(pass.into())).unwrap();
+        let file_contents = fs::read(Path::new(&files[0])).unwrap();
+
+        // we should fail to unzip as the zip is encrypted
+        assert!(get_file_content_from_zip(&buffer[message.get_header_length()..]).is_none());
+
+        // decrypt buffer
+        buffer = buffer[message.get_header_length()..]
+            .decrypt(&pass)
+            .unwrap();
+        buffer = get_file_content_from_zip(&buffer).unwrap();
+
+        assert_eq!(file_contents.len(), buffer.len());
+        for i in 0..buffer.len() {
+            assert_eq!(file_contents[i], buffer[i])
+        }
     }
 }
