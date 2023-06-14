@@ -22,26 +22,13 @@ pub fn unveil(
     let files = match media {
         Media::Image(image) => {
             let mut decoder = LsbCodec::decoder(&image, &opts.codec_options);
-            let msg = Message::of(&mut decoder, password);
-            let mut files = msg.files;
 
-            if let Some(text) = msg.text {
-                files.push(("message.txt".to_owned(), text.as_bytes().to_vec()));
-            }
-
-            files
+            Message::of(&mut decoder, password).files
         }
         Media::Audio(audio) => {
             let mut decoder = Decoder::new(AudioWavIter::new(audio.1.into_iter()), OneBitUnveil);
 
-            let msg = Message::of(&mut decoder, password);
-            let mut files = msg.files;
-
-            if let Some(text) = msg.text {
-                files.push(("message.txt".to_owned(), text.as_bytes().to_vec()));
-            }
-
-            files
+            Message::of(&mut decoder, password).files
         }
     };
 

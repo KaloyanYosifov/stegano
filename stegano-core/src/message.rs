@@ -34,7 +34,6 @@ impl ContentVersion {
 pub struct Message {
     pub header: ContentVersion,
     pub files: Vec<(String, Vec<u8>)>,
-    pub text: Option<String>,
 }
 
 type MessagePassword = Option<String>;
@@ -67,14 +66,9 @@ impl Message {
     pub fn new_of_files(files: &[String]) -> Self {
         let mut m = Self::new(ContentVersion::V4);
 
-        files
-            .iter()
-            //            .map(|f| (f, File::open(f).expect("Data file was not readable.")))
-            //            // TODO instead of filtering, accepting directories would be nice
-            //            .filter(|(name, f)| f.metadata().unwrap().is_file())
-            .for_each(|f| {
-                m.add_file(f);
-            });
+        files.iter().for_each(|f| {
+            m.add_file(f);
+        });
 
         m
     }
@@ -107,7 +101,6 @@ impl Message {
         Message {
             header: version,
             files: Vec::new(),
-            text: None,
         }
     }
 
@@ -223,12 +216,6 @@ impl Message {
     }
 }
 
-impl From<&Message> for Vec<u8> {
-    fn from(m: &Message) -> Vec<u8> {
-        m.get_data(None).unwrap()
-    }
-}
-
 #[cfg(test)]
 mod message_tests {
     use super::*;
@@ -252,7 +239,7 @@ mod message_tests {
             "One file was not there, buffer was broken"
         );
 
-        let b: Vec<u8> = (&m).into();
+        let b: Vec<u8> = m.get_data(None).unwrap();
         assert_ne!(b.len(), 0, "File buffer was empty");
     }
 
@@ -260,7 +247,7 @@ mod message_tests {
     fn should_convert_from_vec_of_bytes() {
         let files = vec!["../resources/with_text/hello_world.png".to_string()];
         let m = Message::new_of_files(&files);
-        let b: Vec<u8> = (&m).into();
+        let b: Vec<u8> = m.get_data(None).unwrap();
         let mut b_cursor = Cursor::new(b);
 
         let m = Message::of(&mut b_cursor, None);
@@ -280,7 +267,7 @@ mod message_tests {
     fn should_instantiate_from_read_trait() {
         let files = vec!["../resources/with_text/hello_world.png".to_string()];
         let m = Message::new_of_files(&files);
-        let mut b: Vec<u8> = (&m).into();
+        let mut b: Vec<u8> = m.get_data(None).unwrap();
         let mut r = Cursor::new(&mut b);
 
         let m = Message::of(&mut r, None);
@@ -295,18 +282,6 @@ mod message_tests {
             "One file was not there, buffer was broken"
         );
     }
-
-    // TODO: check if we can fix this test. It fails because we removed V1
-    // #[test]
-    // fn should_instantiate_from_read_trait_from_message_buffer() {
-    //     use std::io::BufReader;
-    //     const BUF: [u8; 6] = [0x2, b'H', b'e', 0xff, 0xff, 0xcd];
-
-    //     let mut r = BufReader::new(&BUF[..]);
-    //     let m = Message::of(&mut r, None);
-    //     assert_eq!(m.text.unwrap(), "He", "Message.text was not as expected");
-    //     assert_eq!(m.files.len(), 0, "Message.files were not empty.");
-    // }
 
     #[test]
     fn should_create_zip_that_is_windows_compatible() -> std::io::Result<()> {
