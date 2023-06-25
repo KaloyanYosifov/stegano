@@ -26,7 +26,7 @@ impl MessageService {
     }
 
     pub fn generate_zip_file(message: &Message, password: MessagePassword) -> Result<Vec<u8>> {
-        let mut v = vec![message.header.to_u8()];
+        let mut v = vec![message.get_version().to_u8()];
 
         {
             let mut buf = Vec::new();
@@ -57,14 +57,14 @@ impl MessageService {
                 buf = buf.encrypt(&pass)?;
             }
 
-            if message.header == ContentVersion::V4 {
+            if message.get_version() == ContentVersion::V4 {
                 v.write_u32::<BigEndian>(buf.len() as u32)
                     .expect("Failed to write the inner message size.");
             }
 
             v.append(&mut buf);
 
-            if message.header == ContentVersion::V2 {
+            if message.get_version() == ContentVersion::V2 {
                 panic!("V2 is not supported anymore!");
             }
         }

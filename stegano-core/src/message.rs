@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ContentVersion {
     V2,
     V4,
@@ -31,11 +31,10 @@ impl ContentVersion {
     }
 }
 
-type MessagePassword = Option<String>;
 type MessageFile = (String, Vec<u8>);
 
 pub struct Message {
-    pub header: ContentVersion,
+    header: ContentVersion,
     files: Vec<MessageFile>,
 }
 
@@ -97,6 +96,10 @@ impl Message {
 
     pub fn has_files(&self) -> bool {
         !self.get_files().is_empty()
+    }
+
+    pub fn get_version(&self) -> ContentVersion {
+        self.header.clone()
     }
 
     // in Bytes
