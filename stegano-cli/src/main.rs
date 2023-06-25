@@ -134,19 +134,15 @@ fn main() -> Result<()> {
             s.use_media(m.get_one::<String>("media").unwrap())?
                 .write_to(m.get_one::<String>("write_to_file").unwrap());
 
-            if let Some(msg) = m.get_one::<String>("message") {
-                s.hide_message(msg);
+            if let Some(_) = m.get_one::<String>("message") {
+                panic!("Unsopported bullshit!");
             }
 
             if let Some(files) = m.get_many::<String>("data_file") {
-                s.hide_files(files.map(|f| &**f).collect());
+                s.hide(files.map(|f| &**f).collect(), &opts);
+            } else {
+                panic!("No files entered!");
             }
-
-            // if m.contains_id("force_content_version2") {
-            //     s.force_content_version(ContentVersion::V2);
-            // }
-
-            s.hide(&opts);
         }
         Some(("unveil", m)) => {
             unveil(

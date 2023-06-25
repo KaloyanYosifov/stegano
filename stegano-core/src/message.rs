@@ -63,7 +63,7 @@ impl Message {
         }
     }
 
-    pub fn new_of_files(files: &[String]) -> Self {
+    pub fn new_of_files(files: &Vec<&str>) -> Self {
         let mut m = Self::new(ContentVersion::V4);
 
         files.iter().for_each(|f| {

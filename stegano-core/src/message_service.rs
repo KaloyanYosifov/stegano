@@ -63,8 +63,6 @@ impl MessageService {
 mod message_service_tests {
     use std::io::{Cursor, Read};
     use std::{fs, path::Path};
-    use zip::write::FileOptions;
-    use zip::{CompressionMethod, ZipWriter};
 
     use super::MessageService;
     use crate::crypto::EncryptDecrypt;
@@ -88,7 +86,7 @@ mod message_service_tests {
 
     #[test]
     fn should_generate_a_zip_file_from_message() {
-        let files = vec!["../resources/with_text/hello_world.png".to_string()];
+        let files = vec!["../resources/with_text/hello_world.png"];
         let message = Message::new_of_files(&files);
 
         assert_eq!(
@@ -108,7 +106,7 @@ mod message_service_tests {
 
     #[test]
     fn should_generate_a_zip_file_with_correct_content_from_message_files() {
-        let files = vec!["../resources/with_text/hello_world.png".to_string()];
+        let files = vec!["../resources/with_text/hello_world.png"];
         let message = Message::new_of_files(&files);
         let mut buffer: Vec<u8> = MessageService::generate_zip_file(&message, None).unwrap();
         let file_contents = fs::read(Path::new(&files[0])).unwrap();
@@ -123,7 +121,7 @@ mod message_service_tests {
 
     #[test]
     fn should_create_a_zip_that_is_encrypted() {
-        let files = vec!["../resources/with_text/hello_world.png".to_string()];
+        let files = vec!["../resources/with_text/hello_world.png"];
         let pass = "test";
         let message = Message::new_of_files(&files);
         let mut buffer: Vec<u8> =
