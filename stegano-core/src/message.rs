@@ -1,6 +1,7 @@
 use byteorder::ReadBytesExt;
 use std::fs::File;
 use std::io::Read;
+use std::mem::size_of;
 use std::path::Path;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -31,10 +32,32 @@ impl ContentVersion {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct MessageHeader {
+    pub file_size: u64,
+    pub encrypted: bool,
+}
+
+impl Default for MessageHeader {
+    fn default() -> Self {
+        Self {
+            file_size: 0,
+            encrypted: false,
+        }
+    }
+}
+
+impl MessageHeader {
+    pub unsafe fn to_u8(&self) -> &[u8] {
+        core::slice::from_raw_parts((self as *const Self) as *const u8, size_of::<Self>())
+    }
+}
+
 type MessageFile = (String, Vec<u8>);
 
 pub struct Message {
-    header: ContentVersion,
+    version: ContentVersion,
+    header: MessageHeader,
     files: Vec<MessageFile>,
 }
 
@@ -42,8 +65,17 @@ pub struct Message {
 impl Message {
     pub fn new(version: ContentVersion) -> Self {
         Self {
-            header: version,
+            version,
             files: Vec::new(),
+            header: MessageHeader::default(),
+        }
+    }
+
+    pub fn new_with_header(header: MessageHeader) -> Self {
+        Self {
+            header,
+            files: Vec::new(),
+            version: ContentVersion::V5,
         }
     }
 
@@ -59,8 +91,9 @@ impl Message {
 
     pub fn new_of_files(files: &Vec<&str>) -> Self {
         let mut m = Self {
-            header: ContentVersion::V4,
             files: Vec::new(),
+            version: ContentVersion::V5,
+            header: MessageHeader::default(),
         };
 
         files.iter().for_each(|f| {
@@ -85,7 +118,10 @@ impl Message {
     }
 
     pub fn add_file_data(&mut self, file: &str, data: Vec<u8>) -> &mut Self {
+        let data_len = data.len();
         self.files.push((file.to_owned(), data));
+
+        self.header.file_size += data_len as u64;
 
         self
     }
@@ -99,15 +135,20 @@ impl Message {
     }
 
     pub fn get_version(&self) -> ContentVersion {
-        self.header.clone()
+        self.version.clone()
+    }
+
+    pub fn get_header(&self) -> &MessageHeader {
+        &self.header
     }
 
     // in Bytes
     pub fn get_header_length(&self) -> usize {
         let version_size = 1;
 
-        match self.header {
-            ContentVersion::V4 => version_size + 4,
+        match self.version {
+            ContentVersion::V4 => version_size + 4, // 4 bytes for file size
+            ContentVersion::V5 => version_size + size_of::<MessageHeader>(),
             _ => version_size,
         }
     }

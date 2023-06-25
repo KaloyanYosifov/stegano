@@ -1,10 +1,12 @@
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use std::io::Write;
 use std::io::{Cursor, Read};
+use std::mem::size_of;
 
 use crate::crypto::EncryptDecrypt;
-use crate::ContentVersion;
 use crate::Message;
 use crate::Result;
+use crate::{ContentVersion, MessageHeader};
 
 pub struct MessageService;
 
@@ -18,7 +20,7 @@ impl MessageService {
         match version {
             ContentVersion::V2 => Self::new_of_v2(dec, password),
             ContentVersion::V4 => Self::new_of_v4(dec, password),
-            ContentVersion::V5 => unimplemented!("Test"),
+            ContentVersion::V5 => Self::new_of_v5(dec, password),
             ContentVersion::Unsupported(_) => {
                 panic!("Seems like you've got an invalid stegano file")
             }
@@ -26,7 +28,9 @@ impl MessageService {
     }
 
     pub fn generate_zip_file(message: &Message, password: MessagePassword) -> Result<Vec<u8>> {
-        let mut v = vec![message.get_version().to_u8()];
+        let message_version = message.get_version();
+        let mut message_header = message.get_header().clone();
+        let mut v = vec![message_version.to_u8()];
 
         {
             let mut buf = Vec::new();
@@ -55,16 +59,30 @@ impl MessageService {
 
             if let Some(pass) = password {
                 buf = buf.encrypt(&pass)?;
+
+                message_header.encrypted = true;
             }
 
-            if message.get_version() == ContentVersion::V4 {
-                v.write_u32::<BigEndian>(buf.len() as u32)
-                    .expect("Failed to write the inner message size.");
-            }
+            match message_version {
+                ContentVersion::V4 => v
+                    .write_u32::<BigEndian>(buf.len() as u32)
+                    .expect("Failed to write the inner message size."),
+                ContentVersion::V5 => {
+                    message_header.file_size = buf.len() as u64;
+
+                    unsafe {
+                        let bytes = message_header.to_u8();
+
+                        v.write(bytes)
+                            .expect("Failed to write the inner message size.");
+                    }
+                }
+                _ => {}
+            };
 
             v.append(&mut buf);
 
-            if message.get_version() == ContentVersion::V2 {
+            if message_version == ContentVersion::V2 {
                 panic!("V2 is not supported anymore!");
             }
         }
@@ -74,6 +92,22 @@ impl MessageService {
 }
 
 impl MessageService {
+    fn new_of_v5(r: &mut dyn Read, password: MessagePassword) -> Message {
+        let mut message_header_in_bytes = [0u8; size_of::<MessageHeader>()];
+
+        r.read_exact(&mut message_header_in_bytes)
+            .expect("Failed to read payload size header");
+
+        let message_header: MessageHeader = unsafe { std::mem::transmute(message_header_in_bytes) };
+
+        let mut buf = Vec::new();
+        r.take(message_header.file_size)
+            .read_to_end(&mut buf)
+            .expect("Message read of content version 0x04 failed.");
+
+        Self::new_of(buf, password, message_header)
+    }
+
     fn new_of_v4(r: &mut dyn Read, password: MessagePassword) -> Message {
         let payload_size = r
             .read_u32::<BigEndian>()
@@ -84,7 +118,7 @@ impl MessageService {
             .read_to_end(&mut buf)
             .expect("Message read of content version 0x04 failed.");
 
-        Self::new_of(buf, password)
+        Self::new_of(buf, password, MessageHeader::default())
     }
 
     fn new_of_v2(r: &mut dyn Read, password: MessagePassword) -> Message {
@@ -106,10 +140,14 @@ impl MessageService {
             buf.resize(eof, 0);
         }
 
-        Self::new_of(buf, password)
+        Self::new_of(buf, password, MessageHeader::default())
     }
 
-    fn new_of(mut buf: Vec<u8>, password: MessagePassword) -> Message {
+    fn new_of(
+        mut buf: Vec<u8>,
+        password: MessagePassword,
+        message_header: MessageHeader,
+    ) -> Message {
         let mut files = Vec::new();
 
         if let Some(pass) = password {
@@ -131,7 +169,7 @@ impl MessageService {
             }
         }
 
-        let mut message = Message::new(ContentVersion::V4);
+        let mut message = Message::new_with_header(message_header);
 
         for (file, data) in files {
             message.add_file_data(&file, data);
