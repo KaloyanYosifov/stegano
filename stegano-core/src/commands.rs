@@ -1,5 +1,6 @@
 use crate::media::audio::wav_iter::AudioWavIter;
 use crate::media::image::LsbCodec;
+use crate::message_service::MessageService;
 use crate::universal_decoder::{Decoder, OneBitUnveil};
 use crate::{CodecOptions, Media, Message, RawMessage, SteganoError, UnveilOptions};
 use std::fs::{self, File};
@@ -18,22 +19,24 @@ pub fn unveil(
         password = Some(rpassword::prompt_password("Enter decryption password: ").unwrap());
     }
 
-    let files = match media {
+    let message = match media {
         Media::Image(image) => {
             let mut decoder = LsbCodec::decoder(&image, &opts.codec_options);
 
-            Message::of(&mut decoder, password).files
+            MessageService::create_message_from_data(&mut decoder, password)
         }
         Media::Audio(audio) => {
             let mut decoder = Decoder::new(AudioWavIter::new(audio.1.into_iter()), OneBitUnveil);
 
-            Message::of(&mut decoder, password).files
+            MessageService::create_message_from_data(&mut decoder, password)
         }
     };
 
-    if files.is_empty() {
+    if !message.has_files() {
         return Err(SteganoError::NoSecretData);
     }
+
+    let files = message.get_files();
 
     for (file_name, buf) in files.iter().map(|(file_name, buf)| {
         let file = Path::new(file_name).file_name().unwrap().to_str().unwrap();

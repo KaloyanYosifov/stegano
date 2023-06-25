@@ -1,15 +1,13 @@
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::ReadBytesExt;
 use std::fs::File;
-use std::io::{Cursor, Read};
+use std::io::Read;
 use std::path::Path;
-
-use crate::crypto::EncryptDecrypt;
-use crate::Result;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum ContentVersion {
     V2,
     V4,
+    V5,
     Unsupported(u8),
 }
 
@@ -18,6 +16,7 @@ impl ContentVersion {
         match self {
             Self::V2 => 0x02,
             Self::V4 => 0x04,
+            Self::V5 => 0x05,
             Self::Unsupported(v) => *v,
         }
     }
@@ -26,30 +25,26 @@ impl ContentVersion {
         match value {
             0x02 => Self::V2,
             0x04 => Self::V4,
+            0x05 => Self::V5,
             b => Self::Unsupported(b),
         }
     }
 }
 
+type MessagePassword = Option<String>;
+type MessageFile = (String, Vec<u8>);
+
 pub struct Message {
     pub header: ContentVersion,
-    pub files: Vec<(String, Vec<u8>)>,
+    files: Vec<MessageFile>,
 }
-
-type MessagePassword = Option<String>;
 
 // TODO implement Result returning
 impl Message {
-    pub fn of(dec: &mut dyn Read, password: MessagePassword) -> Self {
-        let version = dec.read_u8().unwrap_or_default();
-        let version = ContentVersion::from_u8(version);
-
-        match version {
-            ContentVersion::V2 => Self::new_of_v2(dec, password),
-            ContentVersion::V4 => Self::new_of_v4(dec, password),
-            ContentVersion::Unsupported(_) => {
-                panic!("Seems like you've got an invalid stegano file")
-            }
+    pub fn new(version: ContentVersion) -> Self {
+        Self {
+            header: version,
+            files: Vec::new(),
         }
     }
 
@@ -58,13 +53,16 @@ impl Message {
         let version = ContentVersion::from_u8(version);
 
         match version {
-            ContentVersion::V2 | ContentVersion::V4 => true,
             ContentVersion::Unsupported(_) => false,
+            _ => true,
         }
     }
 
     pub fn new_of_files(files: &Vec<&str>) -> Self {
-        let mut m = Self::new(ContentVersion::V4);
+        let mut m = Self {
+            header: ContentVersion::V4,
+            files: Vec::new(),
+        };
 
         files.iter().for_each(|f| {
             m.add_file(f);
@@ -93,78 +91,12 @@ impl Message {
         self
     }
 
-    pub fn empty() -> Self {
-        Self::new(ContentVersion::V4)
+    pub fn get_files(&self) -> &Vec<MessageFile> {
+        &self.files
     }
 
-    fn new(version: ContentVersion) -> Self {
-        Message {
-            header: version,
-            files: Vec::new(),
-        }
-    }
-
-    fn new_of_v4(r: &mut dyn Read, password: MessagePassword) -> Self {
-        let payload_size = r
-            .read_u32::<BigEndian>()
-            .expect("Failed to read payload size header");
-
-        let mut buf = Vec::new();
-        r.take(payload_size as u64)
-            .read_to_end(&mut buf)
-            .expect("Message read of content version 0x04 failed.");
-
-        Self::new_of(buf, password)
-    }
-
-    fn new_of_v2(r: &mut dyn Read, password: MessagePassword) -> Self {
-        const EOF: u8 = 0xff;
-        let mut buf = Vec::new();
-        r.read_to_end(&mut buf)
-            .expect("Message read of content version 0x02 failed.");
-
-        let mut eof = 0;
-        for (i, b) in buf.iter().enumerate().rev() {
-            if *b == EOF {
-                eof = i;
-                break;
-            }
-            eof = 0;
-        }
-
-        if eof > 0 {
-            buf.resize(eof, 0);
-        }
-
-        Self::new_of(buf, password)
-    }
-
-    fn new_of(mut buf: Vec<u8>, password: MessagePassword) -> Message {
-        let mut files = Vec::new();
-
-        if let Some(pass) = password {
-            buf = buf.decrypt(&pass).unwrap();
-        }
-
-        let mut buf = Cursor::new(buf);
-
-        while let Ok(zip) = zip::read::read_zipfile_from_stream(&mut buf) {
-            match zip {
-                None => {}
-                Some(mut file) => {
-                    let mut writer = Vec::new();
-                    file.read_to_end(&mut writer)
-                        .expect("Failed to read data from inner message structure.");
-
-                    files.push((file.name().to_string(), writer));
-                }
-            }
-        }
-
-        let mut m = Message::new(ContentVersion::V4);
-        m.files.append(&mut files);
-
-        m
+    pub fn has_files(&self) -> bool {
+        !self.get_files().is_empty()
     }
 
     // in Bytes
@@ -181,7 +113,7 @@ impl Message {
 #[cfg(test)]
 mod message_tests {
     use super::*;
-    use std::io::copy;
+    use std::io::{copy, Cursor};
     use zip::write::FileOptions;
     use zip::{CompressionMethod, ZipWriter};
 
