@@ -72,10 +72,13 @@ pub use bit_iterator::BitIterator;
 
 pub mod message;
 
+pub mod message_service;
+
 pub use message::*;
 
 pub mod raw_message;
 
+use message_service::MessageService;
 pub use raw_message::*;
 
 pub mod commands;
@@ -293,7 +296,7 @@ impl Hide for Media {
             password = Some(ask_for_password());
         }
 
-        let buf = message.get_data(password)?;
+        let buf = MessageService::generate_zip_file(&message, password)?;
 
         match self {
             Media::Image(i) => {
