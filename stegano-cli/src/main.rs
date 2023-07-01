@@ -137,8 +137,9 @@ fn main() -> Result<()> {
             }
         }
         Some(("unveil", m)) => {
-            let mut opts = UnveilOptions::default();
-            opts.codec_options = get_codec_options(CodecOptions::default(), &matches);
+            let opts = UnveilOptions {
+                codec_options: get_codec_options(CodecOptions::default(), &matches),
+            };
 
             unveil(
                 Path::new(m.get_one::<String>("input_image").unwrap()),

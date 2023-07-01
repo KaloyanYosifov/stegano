@@ -3,13 +3,8 @@ pub trait PasswordReader {
     fn read_password_prompt(&self, message: &str) -> Option<String>;
 }
 
+#[derive(Default)]
 pub struct PromptPasswordReader;
-
-impl PromptPasswordReader {
-    pub fn new() -> Self {
-        Self
-    }
-}
 
 impl PasswordReader for PromptPasswordReader {
     fn read_password(&self) -> Option<String> {

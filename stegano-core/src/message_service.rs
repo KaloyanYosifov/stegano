@@ -15,11 +15,14 @@ pub struct MessageService {
 
 type MessagePassword = Option<String>;
 
-impl MessageService {
-    pub fn new() -> Self {
-        Self::new_with_password_reader(Box::new(PromptPasswordReader::new()))
+impl Default for MessageService {
+    #[allow(clippy::box_default)]
+    fn default() -> Self {
+        Self::new_with_password_reader(Box::new(PromptPasswordReader::default()))
     }
+}
 
+impl MessageService {
     pub fn new_with_password_reader(password_reader: Box<dyn PasswordReader>) -> Self {
         Self { password_reader }
     }
@@ -236,7 +239,7 @@ mod message_service_tests {
             "One file was not there, buffer was broken"
         );
 
-        let buffer: Vec<u8> = MessageService::new()
+        let buffer: Vec<u8> = MessageService::default()
             .generate_zip_file(&message, None)
             .unwrap();
         assert_ne!(buffer.len(), 0, "File buffer was empty");
@@ -246,7 +249,7 @@ mod message_service_tests {
     fn should_generate_a_zip_file_with_correct_content_from_message_files() {
         let files = vec!["../resources/with_text/hello_world.png"];
         let message = Message::new_of_files(&files);
-        let mut buffer: Vec<u8> = MessageService::new()
+        let mut buffer: Vec<u8> = MessageService::default()
             .generate_zip_file(&message, None)
             .unwrap();
         let file_contents = fs::read(Path::new(&files[0])).unwrap();
@@ -264,7 +267,7 @@ mod message_service_tests {
         let files = vec!["../resources/with_text/hello_world.png"];
         let pass = "test";
         let message = Message::new_of_files(&files);
-        let mut buffer: Vec<u8> = MessageService::new()
+        let mut buffer: Vec<u8> = MessageService::default()
             .generate_zip_file(&message, Some(pass.into()))
             .unwrap();
         let file_contents = fs::read(Path::new(&files[0])).unwrap();
@@ -288,11 +291,11 @@ mod message_service_tests {
     fn should_create_a_message_from_data() {
         let files = vec!["../resources/with_text/hello_world.png"];
         let message = Message::new_of_files(&files);
-        let buffer: Vec<u8> = MessageService::new()
+        let buffer: Vec<u8> = MessageService::default()
             .generate_zip_file(&message, None)
             .unwrap();
         let parsed_message =
-            MessageService::new().create_message_from_data(&mut Cursor::new(buffer));
+            MessageService::default().create_message_from_data(&mut Cursor::new(buffer));
 
         assert_eq!(parsed_message.get_version(), message.get_version());
         assert_eq!(
@@ -306,13 +309,13 @@ mod message_service_tests {
     fn fails_creating_a_message_from_data_if_version_is_not_supported() {
         let files = vec!["../resources/with_text/hello_world.png"];
         let message = Message::new_of_files(&files);
-        let mut buffer: Vec<u8> = MessageService::new()
+        let mut buffer: Vec<u8> = MessageService::default()
             .generate_zip_file(&message, None)
             .unwrap();
 
         // Change version
         buffer[0] = 0x01;
 
-        MessageService::new().create_message_from_data(&mut Cursor::new(buffer));
+        MessageService::default().create_message_from_data(&mut Cursor::new(buffer));
     }
 }

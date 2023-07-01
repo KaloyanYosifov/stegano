@@ -278,7 +278,7 @@ impl Hide for Media {
             password = Some(ask_for_password());
         }
 
-        let buf = MessageService::new().generate_zip_file(message, password)?;
+        let buf = MessageService::default().generate_zip_file(message, password)?;
 
         match self {
             Media::Image(i) => {
