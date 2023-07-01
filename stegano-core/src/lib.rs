@@ -82,6 +82,7 @@ pub use raw_message::*;
 pub mod commands;
 pub mod crypto;
 pub mod media;
+pub mod password_reader;
 pub mod universal_decoder;
 pub mod universal_encoder;
 
@@ -277,7 +278,7 @@ impl Hide for Media {
             password = Some(ask_for_password());
         }
 
-        let buf = MessageService::generate_zip_file(message, password)?;
+        let buf = MessageService::new().generate_zip_file(message, password)?;
 
         match self {
             Media::Image(i) => {

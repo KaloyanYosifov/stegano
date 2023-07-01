@@ -4,23 +4,34 @@ use std::io::{Cursor, Read};
 use std::mem::size_of;
 
 use crate::crypto::EncryptDecrypt;
+use crate::password_reader::{PasswordReader, PromptPasswordReader};
 use crate::Message;
 use crate::Result;
 use crate::{ContentVersion, MessageHeader};
 
-pub struct MessageService;
+pub struct MessageService {
+    password_reader: Box<dyn PasswordReader>,
+}
 
 type MessagePassword = Option<String>;
 
 impl MessageService {
-    pub fn create_message_from_data(dec: &mut dyn Read) -> Message {
+    pub fn new() -> Self {
+        Self::new_with_password_reader(Box::new(PromptPasswordReader::new()))
+    }
+
+    pub fn new_with_password_reader(password_reader: Box<dyn PasswordReader>) -> Self {
+        Self { password_reader }
+    }
+
+    pub fn create_message_from_data(&self, dec: &mut dyn Read) -> Message {
         let version = dec.read_u8().unwrap_or_default();
         let version = ContentVersion::from_u8(version);
 
         match version {
-            ContentVersion::V2 => Self::new_of_v2(dec),
-            ContentVersion::V4 => Self::new_of_v4(dec),
-            ContentVersion::V5 => Self::new_of_v5(dec),
+            ContentVersion::V2 => self.new_of_v2(dec),
+            ContentVersion::V4 => self.new_of_v4(dec),
+            ContentVersion::V5 => self.new_of_v5(dec),
             ContentVersion::Unsupported(_) => {
                 panic!("Seems like you've got an invalid stegano file")
             }
@@ -28,7 +39,11 @@ impl MessageService {
     }
 
     #[allow(clippy::unused_io_amount)]
-    pub fn generate_zip_file(message: &Message, password: MessagePassword) -> Result<Vec<u8>> {
+    pub fn generate_zip_file(
+        &self,
+        message: &Message,
+        password: MessagePassword,
+    ) -> Result<Vec<u8>> {
         let message_version = message.get_version();
         let mut message_header = message.get_header().clone();
         let mut v = vec![message_version.to_u8()];
@@ -93,7 +108,7 @@ impl MessageService {
 }
 
 impl MessageService {
-    fn new_of_v5(r: &mut dyn Read) -> Message {
+    fn new_of_v5(&self, r: &mut dyn Read) -> Message {
         let mut message_header_in_bytes = [0u8; size_of::<MessageHeader>()];
 
         r.read_exact(&mut message_header_in_bytes)
@@ -106,10 +121,10 @@ impl MessageService {
             .read_to_end(&mut buf)
             .expect("Message read of content version 0x04 failed.");
 
-        Self::new_of(buf, message_header)
+        self.new_of(buf, message_header)
     }
 
-    fn new_of_v4(r: &mut dyn Read) -> Message {
+    fn new_of_v4(&self, r: &mut dyn Read) -> Message {
         let payload_size = r
             .read_u32::<BigEndian>()
             .expect("Failed to read payload size header");
@@ -119,10 +134,10 @@ impl MessageService {
             .read_to_end(&mut buf)
             .expect("Message read of content version 0x04 failed.");
 
-        Self::new_of(buf, MessageHeader::default())
+        self.new_of(buf, MessageHeader::default())
     }
 
-    fn new_of_v2(r: &mut dyn Read) -> Message {
+    fn new_of_v2(&self, r: &mut dyn Read) -> Message {
         const EOF: u8 = 0xff;
         let mut buf = Vec::new();
         r.read_to_end(&mut buf)
@@ -141,13 +156,16 @@ impl MessageService {
             buf.resize(eof, 0);
         }
 
-        Self::new_of(buf, MessageHeader::default())
+        self.new_of(buf, MessageHeader::default())
     }
 
-    fn new_of(mut buf: Vec<u8>, message_header: MessageHeader) -> Message {
+    fn new_of(&self, mut buf: Vec<u8>, message_header: MessageHeader) -> Message {
         let mut files = Vec::new();
         if message_header.encrypted {
-            let password = rpassword::prompt_password("Enter decryption password: ").unwrap();
+            let password = self
+                .password_reader
+                .read_password_prompt("Enter decryption password: ")
+                .unwrap();
 
             buf = buf.decrypt(&password).unwrap();
         }
@@ -218,7 +236,9 @@ mod message_service_tests {
             "One file was not there, buffer was broken"
         );
 
-        let buffer: Vec<u8> = MessageService::generate_zip_file(&message, None).unwrap();
+        let buffer: Vec<u8> = MessageService::new()
+            .generate_zip_file(&message, None)
+            .unwrap();
         assert_ne!(buffer.len(), 0, "File buffer was empty");
     }
 
@@ -226,7 +246,9 @@ mod message_service_tests {
     fn should_generate_a_zip_file_with_correct_content_from_message_files() {
         let files = vec!["../resources/with_text/hello_world.png"];
         let message = Message::new_of_files(&files);
-        let mut buffer: Vec<u8> = MessageService::generate_zip_file(&message, None).unwrap();
+        let mut buffer: Vec<u8> = MessageService::new()
+            .generate_zip_file(&message, None)
+            .unwrap();
         let file_contents = fs::read(Path::new(&files[0])).unwrap();
 
         buffer = get_file_content_from_zip(&buffer[message.get_header_length()..]).unwrap();
@@ -242,8 +264,9 @@ mod message_service_tests {
         let files = vec!["../resources/with_text/hello_world.png"];
         let pass = "test";
         let message = Message::new_of_files(&files);
-        let mut buffer: Vec<u8> =
-            MessageService::generate_zip_file(&message, Some(pass.into())).unwrap();
+        let mut buffer: Vec<u8> = MessageService::new()
+            .generate_zip_file(&message, Some(pass.into()))
+            .unwrap();
         let file_contents = fs::read(Path::new(&files[0])).unwrap();
 
         // we should fail to unzip as the zip is encrypted
@@ -265,8 +288,11 @@ mod message_service_tests {
     fn should_create_a_message_from_data() {
         let files = vec!["../resources/with_text/hello_world.png"];
         let message = Message::new_of_files(&files);
-        let buffer: Vec<u8> = MessageService::generate_zip_file(&message, None).unwrap();
-        let parsed_message = MessageService::create_message_from_data(&mut Cursor::new(buffer));
+        let buffer: Vec<u8> = MessageService::new()
+            .generate_zip_file(&message, None)
+            .unwrap();
+        let parsed_message =
+            MessageService::new().create_message_from_data(&mut Cursor::new(buffer));
 
         assert_eq!(parsed_message.get_version(), message.get_version());
         assert_eq!(
@@ -280,11 +306,13 @@ mod message_service_tests {
     fn fails_creating_a_message_from_data_if_version_is_not_supported() {
         let files = vec!["../resources/with_text/hello_world.png"];
         let message = Message::new_of_files(&files);
-        let mut buffer: Vec<u8> = MessageService::generate_zip_file(&message, None).unwrap();
+        let mut buffer: Vec<u8> = MessageService::new()
+            .generate_zip_file(&message, None)
+            .unwrap();
 
         // Change version
         buffer[0] = 0x01;
 
-        MessageService::create_message_from_data(&mut Cursor::new(buffer));
+        MessageService::new().create_message_from_data(&mut Cursor::new(buffer));
     }
 }
