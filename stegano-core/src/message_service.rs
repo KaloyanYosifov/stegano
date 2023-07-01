@@ -260,4 +260,31 @@ mod message_service_tests {
             assert_eq!(file_contents[i], buffer[i])
         }
     }
+
+    #[test]
+    fn should_create_a_message_from_data() {
+        let files = vec!["../resources/with_text/hello_world.png"];
+        let message = Message::new_of_files(&files);
+        let buffer: Vec<u8> = MessageService::generate_zip_file(&message, None).unwrap();
+        let parsed_message = MessageService::create_message_from_data(&mut Cursor::new(buffer));
+
+        assert_eq!(parsed_message.get_version(), message.get_version());
+        assert_eq!(
+            parsed_message.get_header_length(),
+            message.get_header_length()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Seems like you've got an invalid stegano file")]
+    fn fails_creating_a_message_from_data_if_version_is_not_supported() {
+        let files = vec!["../resources/with_text/hello_world.png"];
+        let message = Message::new_of_files(&files);
+        let mut buffer: Vec<u8> = MessageService::generate_zip_file(&message, None).unwrap();
+
+        // Change version
+        buffer[0] = 0x01;
+
+        MessageService::create_message_from_data(&mut Cursor::new(buffer));
+    }
 }
