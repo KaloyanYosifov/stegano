@@ -1,7 +1,8 @@
 use crate::media::audio::wav_iter::AudioWavIter;
 use crate::media::image::LsbCodec;
+use crate::message_service::MessageService;
 use crate::universal_decoder::{Decoder, OneBitUnveil};
-use crate::{CodecOptions, Media, Message, RawMessage, SteganoError};
+use crate::{CodecOptions, Media, Message, RawMessage, SteganoError, UnveilOptions};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
@@ -9,39 +10,28 @@ use std::path::Path;
 pub fn unveil(
     secret_media: &Path,
     destination: &Path,
-    opts: &CodecOptions,
+    opts: &UnveilOptions,
 ) -> Result<(), SteganoError> {
     let media = Media::from_file(secret_media)?;
 
-    let files = match media {
+    let message = match media {
         Media::Image(image) => {
-            let mut decoder = LsbCodec::decoder(&image, opts);
-            let msg = Message::of(&mut decoder);
-            let mut files = msg.files;
+            let mut decoder = LsbCodec::decoder(&image, &opts.codec_options);
 
-            if let Some(text) = msg.text {
-                files.push(("message.txt".to_owned(), text.as_bytes().to_vec()));
-            }
-
-            files
+            MessageService::default().create_message_from_data(&mut decoder)?
         }
         Media::Audio(audio) => {
             let mut decoder = Decoder::new(AudioWavIter::new(audio.1.into_iter()), OneBitUnveil);
 
-            let msg = Message::of(&mut decoder);
-            let mut files = msg.files;
-
-            if let Some(text) = msg.text {
-                files.push(("message.txt".to_owned(), text.as_bytes().to_vec()));
-            }
-
-            files
+            MessageService::default().create_message_from_data(&mut decoder)?
         }
     };
 
-    if files.is_empty() {
+    if !message.has_files() {
         return Err(SteganoError::NoSecretData);
     }
+
+    let files = message.get_files();
 
     for (file_name, buf) in files.iter().map(|(file_name, buf)| {
         let file = Path::new(file_name).file_name().unwrap().to_str().unwrap();

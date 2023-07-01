@@ -1,8 +1,8 @@
 [package]
 name = "stegano-core"
 description = "Steganography core library for stegano-cli. Supports hiding data in PNG images via LSB Encoding."
-version = "0.5.3"
-authors = ["Sven Kanoldt <sven@d34dl0ck.me>"]
+version = "0.6.0"
+authors = ["Sven Kanoldt <sven@d34dl0ck.me>", "Kaloyan Yosifov <kyosifovs@proton.me>"]
 edition = "2021"
 license = "GPL-3.0-only"
 homepage = "https://www.stegano.org"
@@ -27,11 +27,15 @@ byteorder = "1.4"
 hound = "3.5"
 thiserror = "1.0"
 enum_dispatch = "0.3"
+argon2 = "0.5.0"
+aes-gcm = "0.10.2"
+rpassword = "7.2.0"
 
 [dev-dependencies]
 speculate = "0.1"
 criterion = { version = "0.4", features = ["html_reports"] }
 tempfile = "3.5"
+proptest = "1.2.0"
 
 [dev-dependencies.cargo-husky]
 version = "1"
