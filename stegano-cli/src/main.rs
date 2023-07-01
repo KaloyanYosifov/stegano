@@ -119,7 +119,7 @@ fn main() -> Result<()> {
 
     match matches.subcommand() {
         Some(("hide", m)) => {
-            let opts = get_hide_options(&m);
+            let opts = get_hide_options(m);
             let codec_options = get_codec_options(CodecOptions::default(), &matches);
             let mut s = SteganoCore::encoder_with_options(codec_options);
 
