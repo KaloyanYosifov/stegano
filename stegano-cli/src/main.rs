@@ -137,7 +137,7 @@ fn main() -> Result<()> {
             }
         }
         Some(("unveil", m)) => {
-            let mut opts = get_unveil_options(m);
+            let mut opts = UnveilOptions::default();
             opts.codec_options = get_codec_options(CodecOptions::default(), &matches);
 
             unveil(
@@ -194,13 +194,6 @@ fn get_hide_options(args: &ArgMatches) -> HideOptions {
     if *args.get_one::<bool>("encrypt").unwrap() {
         opts.encrypt = true;
     }
-
-    opts
-}
-
-fn get_unveil_options(args: &ArgMatches) -> UnveilOptions {
-    let mut opts = UnveilOptions::default();
-    opts.codec_options = get_codec_options(opts.codec_options, args);
 
     opts
 }
