@@ -64,11 +64,11 @@ impl Message {
         }
     }
 
-    pub fn new_with_header(header: MessageHeader) -> Self {
+    pub fn new_with_header(header: MessageHeader, version: ContentVersion) -> Self {
         Self {
             header,
+            version,
             files: Vec::new(),
-            version: ContentVersion::V5,
         }
     }
 
@@ -80,9 +80,13 @@ impl Message {
     }
 
     pub fn new_of_files(files: &[&str]) -> Self {
+        Self::new_of_files_with_version(files, ContentVersion::V5)
+    }
+
+    pub fn new_of_files_with_version(files: &[&str], version: ContentVersion) -> Self {
         let mut m = Self {
+            version,
             files: Vec::new(),
-            version: ContentVersion::V5,
             header: MessageHeader::default(),
         };
 

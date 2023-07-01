@@ -122,9 +122,9 @@ impl MessageService {
 
         r.take(message_header.file_size)
             .read_to_end(&mut buf)
-            .expect("Message read of content version 0x04 failed.");
+            .expect("Message read of content version 0x05 failed.");
 
-        self.new_of(buf, message_header)
+        self.new_of(buf, message_header, ContentVersion::V5)
     }
 
     fn new_of_v4(&self, r: &mut dyn Read) -> Result<Message> {
@@ -137,7 +137,7 @@ impl MessageService {
             .read_to_end(&mut buf)
             .expect("Message read of content version 0x04 failed.");
 
-        self.new_of(buf, MessageHeader::default())
+        self.new_of(buf, MessageHeader::default(), ContentVersion::V4)
     }
 
     fn new_of_v2(&self, r: &mut dyn Read) -> Result<Message> {
@@ -159,10 +159,15 @@ impl MessageService {
             buf.resize(eof, 0);
         }
 
-        self.new_of(buf, MessageHeader::default())
+        self.new_of(buf, MessageHeader::default(), ContentVersion::V2)
     }
 
-    fn new_of(&self, mut buf: Vec<u8>, message_header: MessageHeader) -> Result<Message> {
+    fn new_of(
+        &self,
+        mut buf: Vec<u8>,
+        message_header: MessageHeader,
+        version: ContentVersion,
+    ) -> Result<Message> {
         let mut files = Vec::new();
         if message_header.encrypted {
             let password = self
@@ -188,7 +193,7 @@ impl MessageService {
             }
         }
 
-        let mut message = Message::new_with_header(message_header);
+        let mut message = Message::new_with_header(message_header, version);
 
         for (file, data) in files {
             message.add_file_data(&file, data);
@@ -206,7 +211,7 @@ mod message_service_tests {
     use super::MessageService;
     use crate::crypto::EncryptDecrypt;
     use crate::password_reader::PredefinedPasswordReader;
-    use crate::Message;
+    use crate::{ContentVersion, Message};
 
     fn get_file_content_from_zip(buf: &[u8]) -> Option<Vec<u8>> {
         let mut cursor = Cursor::new(buf);
@@ -363,5 +368,24 @@ mod message_service_tests {
         MessageService::default()
             .create_message_from_data(&mut Cursor::new(buffer))
             .unwrap();
+    }
+
+    #[test]
+    fn should_create_a_message_from_data_for_v4() {
+        let files = vec!["../resources/with_text/hello_world.png"];
+        let message = Message::new_of_files_with_version(&files, ContentVersion::V4);
+        let buffer: Vec<u8> = MessageService::default()
+            .generate_zip_file(&message, None)
+            .unwrap();
+        let parsed_message = MessageService::default()
+            .create_message_from_data(&mut Cursor::new(buffer))
+            .unwrap();
+
+        assert_eq!(parsed_message.get_version(), ContentVersion::V4);
+        assert_eq!(parsed_message.get_version(), message.get_version());
+        assert_eq!(
+            parsed_message.get_header_length(),
+            message.get_header_length()
+        );
     }
 }
