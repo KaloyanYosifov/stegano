@@ -126,7 +126,7 @@ fn main() -> Result<()> {
             s.use_media(m.get_one::<String>("media").unwrap())?
                 .write_to(m.get_one::<String>("write_to_file").unwrap());
 
-            if let Some(_) = m.get_one::<String>("message") {
+            if m.get_one::<String>("message").is_some() {
                 panic!("Unsopported bullshit!");
             }
 
@@ -137,7 +137,7 @@ fn main() -> Result<()> {
             }
         }
         Some(("unveil", m)) => {
-            let mut opts = get_unveil_options(&m);
+            let mut opts = get_unveil_options(m);
             opts.codec_options = get_codec_options(CodecOptions::default(), &matches);
 
             unveil(
@@ -170,7 +170,7 @@ fn main() -> Result<()> {
             let paths_only = paths.iter().map(|path| path.as_path()).collect();
             let files_with_secrets = check_files(paths_only)?;
 
-            if files_with_secrets.len() == 0 {
+            if files_with_secrets.is_empty() {
                 println!("No secrets found");
 
                 return Ok(());
