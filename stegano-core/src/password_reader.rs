@@ -21,3 +21,31 @@ impl PasswordReader for PromptPasswordReader {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Only for tests
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+pub struct PredefinedPasswordReader {
+    message: Option<String>,
+}
+
+#[cfg(test)]
+impl PredefinedPasswordReader {
+    pub fn new(message: Option<String>) -> Self {
+        Self { message }
+    }
+}
+
+#[cfg(test)]
+impl PasswordReader for PredefinedPasswordReader {
+    fn read_password(&self) -> Option<String> {
+        self.message.clone()
+    }
+
+    fn read_password_prompt(&self, message: &str) -> Option<String> {
+        println!("{}", message);
+
+        self.message.clone()
+    }
+}

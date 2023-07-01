@@ -27,7 +27,7 @@ impl MessageService {
         Self { password_reader }
     }
 
-    pub fn create_message_from_data(&self, dec: &mut dyn Read) -> Message {
+    pub fn create_message_from_data(&self, dec: &mut dyn Read) -> Result<Message> {
         let version = dec.read_u8().unwrap_or_default();
         let version = ContentVersion::from_u8(version);
 
@@ -111,7 +111,7 @@ impl MessageService {
 }
 
 impl MessageService {
-    fn new_of_v5(&self, r: &mut dyn Read) -> Message {
+    fn new_of_v5(&self, r: &mut dyn Read) -> Result<Message> {
         let mut message_header_in_bytes = [0u8; size_of::<MessageHeader>()];
 
         r.read_exact(&mut message_header_in_bytes)
@@ -127,7 +127,7 @@ impl MessageService {
         self.new_of(buf, message_header)
     }
 
-    fn new_of_v4(&self, r: &mut dyn Read) -> Message {
+    fn new_of_v4(&self, r: &mut dyn Read) -> Result<Message> {
         let payload_size = r
             .read_u32::<BigEndian>()
             .expect("Failed to read payload size header");
@@ -140,7 +140,7 @@ impl MessageService {
         self.new_of(buf, MessageHeader::default())
     }
 
-    fn new_of_v2(&self, r: &mut dyn Read) -> Message {
+    fn new_of_v2(&self, r: &mut dyn Read) -> Result<Message> {
         const EOF: u8 = 0xff;
         let mut buf = Vec::new();
         r.read_to_end(&mut buf)
@@ -162,7 +162,7 @@ impl MessageService {
         self.new_of(buf, MessageHeader::default())
     }
 
-    fn new_of(&self, mut buf: Vec<u8>, message_header: MessageHeader) -> Message {
+    fn new_of(&self, mut buf: Vec<u8>, message_header: MessageHeader) -> Result<Message> {
         let mut files = Vec::new();
         if message_header.encrypted {
             let password = self
@@ -170,7 +170,7 @@ impl MessageService {
                 .read_password_prompt("Enter decryption password: ")
                 .unwrap();
 
-            buf = buf.decrypt(&password).unwrap();
+            buf = buf.decrypt(&password)?;
         }
 
         let mut buf = Cursor::new(buf);
@@ -194,7 +194,7 @@ impl MessageService {
             message.add_file_data(&file, data);
         }
 
-        message
+        Ok(message)
     }
 }
 
@@ -205,6 +205,7 @@ mod message_service_tests {
 
     use super::MessageService;
     use crate::crypto::EncryptDecrypt;
+    use crate::password_reader::PredefinedPasswordReader;
     use crate::Message;
 
     fn get_file_content_from_zip(buf: &[u8]) -> Option<Vec<u8>> {
@@ -294,13 +295,56 @@ mod message_service_tests {
         let buffer: Vec<u8> = MessageService::default()
             .generate_zip_file(&message, None)
             .unwrap();
-        let parsed_message =
-            MessageService::default().create_message_from_data(&mut Cursor::new(buffer));
+        let parsed_message = MessageService::default()
+            .create_message_from_data(&mut Cursor::new(buffer))
+            .unwrap();
 
         assert_eq!(parsed_message.get_version(), message.get_version());
         assert_eq!(
             parsed_message.get_header_length(),
             message.get_header_length()
+        );
+    }
+
+    #[test]
+    fn should_create_a_message_from_encrypted_data() {
+        let files = vec!["../resources/with_text/hello_world.png"];
+        let pass = Some("Test".into());
+        let message = Message::new_of_files(&files);
+        let buffer: Vec<u8> = MessageService::default()
+            .generate_zip_file(&message, pass.clone())
+            .unwrap();
+        let message_service = MessageService::new_with_password_reader(Box::new(
+            PredefinedPasswordReader::new(pass.clone()),
+        ));
+        let parsed_message = message_service
+            .create_message_from_data(&mut Cursor::new(buffer))
+            .unwrap();
+
+        assert_eq!(parsed_message.get_version(), message.get_version());
+        assert_eq!(
+            parsed_message.get_header_length(),
+            message.get_header_length()
+        );
+    }
+
+    #[test]
+    fn fails_creating_a_message_from_data_if_wrong_decryption_password_is_used() {
+        let files = vec!["../resources/with_text/hello_world.png"];
+        let pass = Some("Test".into());
+        let message = Message::new_of_files(&files);
+        let buffer: Vec<u8> = MessageService::default()
+            .generate_zip_file(&message, pass.clone())
+            .unwrap();
+        let message_service = MessageService::new_with_password_reader(Box::new(
+            PredefinedPasswordReader::new(Some("Test2".into())),
+        ));
+        let result = message_service.create_message_from_data(&mut Cursor::new(buffer));
+
+        assert!(result.is_err());
+        matches!(
+            result.err().unwrap(),
+            crate::SteganoError::CannotEncryptData
         );
     }
 
@@ -316,6 +360,8 @@ mod message_service_tests {
         // Change version
         buffer[0] = 0x01;
 
-        MessageService::default().create_message_from_data(&mut Cursor::new(buffer));
+        MessageService::default()
+            .create_message_from_data(&mut Cursor::new(buffer))
+            .unwrap();
     }
 }

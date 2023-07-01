@@ -18,12 +18,12 @@ pub fn unveil(
         Media::Image(image) => {
             let mut decoder = LsbCodec::decoder(&image, &opts.codec_options);
 
-            MessageService::default().create_message_from_data(&mut decoder)
+            MessageService::default().create_message_from_data(&mut decoder)?
         }
         Media::Audio(audio) => {
             let mut decoder = Decoder::new(AudioWavIter::new(audio.1.into_iter()), OneBitUnveil);
 
-            MessageService::default().create_message_from_data(&mut decoder)
+            MessageService::default().create_message_from_data(&mut decoder)?
         }
     };
 
