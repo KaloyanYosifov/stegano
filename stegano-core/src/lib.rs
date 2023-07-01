@@ -93,28 +93,14 @@ use thiserror::Error;
 
 pub use crate::media::image::CodecOptions;
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct UnveilOptions {
     pub codec_options: CodecOptions,
 }
 
-impl Default for UnveilOptions {
-    fn default() -> Self {
-        Self {
-            codec_options: CodecOptions::default(),
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct HideOptions {
     pub encrypt: bool,
-}
-
-impl Default for HideOptions {
-    fn default() -> Self {
-        Self { encrypt: false }
-    }
 }
 
 #[derive(Error, Debug)]
@@ -291,7 +277,7 @@ impl Hide for Media {
             password = Some(ask_for_password());
         }
 
-        let buf = MessageService::generate_zip_file(&message, password)?;
+        let buf = MessageService::generate_zip_file(message, password)?;
 
         match self {
             Media::Image(i) => {
@@ -316,20 +302,11 @@ impl Hide for Media {
     }
 }
 
+#[derive(Default)]
 pub struct SteganoEncoder {
     options: CodecOptions,
     target: Option<String>,
     carrier: Option<Media>,
-}
-
-impl Default for SteganoEncoder {
-    fn default() -> Self {
-        Self {
-            options: CodecOptions::default(),
-            target: None,
-            carrier: None,
-        }
-    }
 }
 
 impl SteganoEncoder {
@@ -370,7 +347,7 @@ impl SteganoEncoder {
         self
     }
 
-    fn create_message(&self, input_files: &Vec<&str>) -> Message {
+    fn create_message(&self, input_files: &[&str]) -> Message {
         Message::new_of_files(input_files)
     }
 }

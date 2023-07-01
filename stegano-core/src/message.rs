@@ -32,22 +32,15 @@ impl ContentVersion {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct MessageHeader {
     pub file_size: u64,
     pub encrypted: bool,
 }
 
-impl Default for MessageHeader {
-    fn default() -> Self {
-        Self {
-            file_size: 0,
-            encrypted: false,
-        }
-    }
-}
-
 impl MessageHeader {
+    /// # Safety
+    /// This function is used to convert message header to bytes
     pub unsafe fn to_u8(&self) -> &[u8] {
         core::slice::from_raw_parts((self as *const Self) as *const u8, size_of::<Self>())
     }
@@ -83,13 +76,10 @@ impl Message {
         let version = dec.read_u8().unwrap_or_default();
         let version = ContentVersion::from_u8(version);
 
-        match version {
-            ContentVersion::Unsupported(_) => false,
-            _ => true,
-        }
+        !matches!(version, ContentVersion::Unsupported(_))
     }
 
-    pub fn new_of_files(files: &Vec<&str>) -> Self {
+    pub fn new_of_files(files: &[&str]) -> Self {
         let mut m = Self {
             files: Vec::new(),
             version: ContentVersion::V5,

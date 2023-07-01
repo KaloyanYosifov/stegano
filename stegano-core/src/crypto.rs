@@ -17,14 +17,14 @@ const TOTAL_META_LEN: usize = NONCE_AND_SALT_LEN + PADDING_LEN;
 fn derive_key(password: &str, salt: &[u8]) -> Result<Vec<u8>> {
     let mut key = [0; DEFAULT_KEY_LEN];
 
-    match Argon2::default().hash_password_into(password.as_bytes(), &salt, &mut key) {
+    match Argon2::default().hash_password_into(password.as_bytes(), salt, &mut key) {
         Ok(_) => Ok(key.to_vec()),
         _ => Err(SteganoError::CannotEncryptData),
     }
 }
 
 fn encrypt(message: &[u8], password: &str) -> Result<Vec<u8>> {
-    if message.len() <= 0 {
+    if message.is_empty() {
         return Err(SteganoError::CannotEncryptData);
     }
 
