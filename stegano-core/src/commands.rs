@@ -13,22 +13,17 @@ pub fn unveil(
     opts: &UnveilOptions,
 ) -> Result<(), SteganoError> {
     let media = Media::from_file(secret_media)?;
-    let mut password = None;
-
-    if opts.decrypt {
-        password = Some(rpassword::prompt_password("Enter decryption password: ").unwrap());
-    }
 
     let message = match media {
         Media::Image(image) => {
             let mut decoder = LsbCodec::decoder(&image, &opts.codec_options);
 
-            MessageService::create_message_from_data(&mut decoder, password)
+            MessageService::create_message_from_data(&mut decoder)
         }
         Media::Audio(audio) => {
             let mut decoder = Decoder::new(AudioWavIter::new(audio.1.into_iter()), OneBitUnveil);
 
-            MessageService::create_message_from_data(&mut decoder, password)
+            MessageService::create_message_from_data(&mut decoder)
         }
     };
 

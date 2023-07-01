@@ -88,7 +88,6 @@ pub mod universal_encoder;
 use hound::{WavReader, WavSpec, WavWriter};
 use image::RgbaImage;
 use std::default::Default;
-use std::fs::File;
 use std::path::Path;
 use thiserror::Error;
 
@@ -96,14 +95,12 @@ pub use crate::media::image::CodecOptions;
 
 #[derive(Debug)]
 pub struct UnveilOptions {
-    pub decrypt: bool,
     pub codec_options: CodecOptions,
 }
 
 impl Default for UnveilOptions {
     fn default() -> Self {
         Self {
-            decrypt: false,
             codec_options: CodecOptions::default(),
         }
     }
@@ -382,7 +379,7 @@ impl SteganoEncoder {
 mod e2e_tests {
     use super::*;
     use crate::commands::{unveil, unveil_raw};
-    use std::fs;
+    use std::fs::{self, File};
     use std::io::Read;
     use tempfile::TempDir;
 

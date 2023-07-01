@@ -13,14 +13,14 @@ pub struct MessageService;
 type MessagePassword = Option<String>;
 
 impl MessageService {
-    pub fn create_message_from_data(dec: &mut dyn Read, password: MessagePassword) -> Message {
+    pub fn create_message_from_data(dec: &mut dyn Read) -> Message {
         let version = dec.read_u8().unwrap_or_default();
         let version = ContentVersion::from_u8(version);
 
         match version {
-            ContentVersion::V2 => Self::new_of_v2(dec, password),
-            ContentVersion::V4 => Self::new_of_v4(dec, password),
-            ContentVersion::V5 => Self::new_of_v5(dec, password),
+            ContentVersion::V2 => Self::new_of_v2(dec),
+            ContentVersion::V4 => Self::new_of_v4(dec),
+            ContentVersion::V5 => Self::new_of_v5(dec),
             ContentVersion::Unsupported(_) => {
                 panic!("Seems like you've got an invalid stegano file")
             }
@@ -92,23 +92,23 @@ impl MessageService {
 }
 
 impl MessageService {
-    fn new_of_v5(r: &mut dyn Read, password: MessagePassword) -> Message {
+    fn new_of_v5(r: &mut dyn Read) -> Message {
         let mut message_header_in_bytes = [0u8; size_of::<MessageHeader>()];
 
         r.read_exact(&mut message_header_in_bytes)
             .expect("Failed to read payload size header");
 
         let message_header: MessageHeader = unsafe { std::mem::transmute(message_header_in_bytes) };
-
         let mut buf = Vec::new();
+
         r.take(message_header.file_size)
             .read_to_end(&mut buf)
             .expect("Message read of content version 0x04 failed.");
 
-        Self::new_of(buf, password, message_header)
+        Self::new_of(buf, message_header)
     }
 
-    fn new_of_v4(r: &mut dyn Read, password: MessagePassword) -> Message {
+    fn new_of_v4(r: &mut dyn Read) -> Message {
         let payload_size = r
             .read_u32::<BigEndian>()
             .expect("Failed to read payload size header");
@@ -118,10 +118,10 @@ impl MessageService {
             .read_to_end(&mut buf)
             .expect("Message read of content version 0x04 failed.");
 
-        Self::new_of(buf, password, MessageHeader::default())
+        Self::new_of(buf, MessageHeader::default())
     }
 
-    fn new_of_v2(r: &mut dyn Read, password: MessagePassword) -> Message {
+    fn new_of_v2(r: &mut dyn Read) -> Message {
         const EOF: u8 = 0xff;
         let mut buf = Vec::new();
         r.read_to_end(&mut buf)
@@ -140,18 +140,15 @@ impl MessageService {
             buf.resize(eof, 0);
         }
 
-        Self::new_of(buf, password, MessageHeader::default())
+        Self::new_of(buf, MessageHeader::default())
     }
 
-    fn new_of(
-        mut buf: Vec<u8>,
-        password: MessagePassword,
-        message_header: MessageHeader,
-    ) -> Message {
+    fn new_of(mut buf: Vec<u8>, message_header: MessageHeader) -> Message {
         let mut files = Vec::new();
+        if message_header.encrypted {
+            let password = rpassword::prompt_password("Enter decryption password: ").unwrap();
 
-        if let Some(pass) = password {
-            buf = buf.decrypt(&pass).unwrap();
+            buf = buf.decrypt(&password).unwrap();
         }
 
         let mut buf = Cursor::new(buf);

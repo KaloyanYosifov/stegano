@@ -74,14 +74,6 @@ fn main() -> Result<()> {
                         .value_name("output folder")
                         .required(true)
                         .help("Final data will be stored in that folder"),
-                )
-                .arg(
-                    Arg::new("decrypt")
-                        .short('d')
-                        .long("decrypt")
-                        .required(false)
-                        .num_args(0)
-                        .help("Option to decrypt data"),
                 ),
         )
         .subcommand(
@@ -145,10 +137,13 @@ fn main() -> Result<()> {
             }
         }
         Some(("unveil", m)) => {
+            let mut opts = get_unveil_options(&m);
+            opts.codec_options = get_codec_options(CodecOptions::default(), &matches);
+
             unveil(
                 Path::new(m.get_one::<String>("input_image").unwrap()),
                 Path::new(m.get_one::<String>("output_folder").unwrap()),
-                &get_unveil_options(&m),
+                &opts,
             )?;
         }
         Some(("unveil-raw", m)) => {
@@ -205,11 +200,7 @@ fn get_hide_options(args: &ArgMatches) -> HideOptions {
 
 fn get_unveil_options(args: &ArgMatches) -> UnveilOptions {
     let mut opts = UnveilOptions::default();
-    // opts.codec_options = get_codec_options(opts.codec_options, args);
-
-    if *args.get_one::<bool>("decrypt").unwrap() {
-        opts.decrypt = true;
-    }
+    opts.codec_options = get_codec_options(opts.codec_options, args);
 
     opts
 }
