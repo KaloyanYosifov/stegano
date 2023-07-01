@@ -27,6 +27,7 @@ impl MessageService {
         }
     }
 
+    #[allow(clippy::unused_io_amount)]
     pub fn generate_zip_file(message: &Message, password: MessagePassword) -> Result<Vec<u8>> {
         let message_version = message.get_version();
         let mut message_header = message.get_header().clone();

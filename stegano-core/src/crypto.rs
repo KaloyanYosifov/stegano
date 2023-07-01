@@ -44,9 +44,7 @@ fn encrypt(message: &[u8], password: &str) -> Result<Vec<u8>> {
         Ok(ciphertext) => {
             let ciphertext_len = ciphertext.len();
             let new_ciphertext_len = ciphertext_len + TOTAL_META_LEN;
-            let mut padded_ciphertext: Vec<u8> = Vec::with_capacity(new_ciphertext_len);
-
-            padded_ciphertext.resize(new_ciphertext_len, 0);
+            let mut padded_ciphertext: Vec<u8> = vec![0; new_ciphertext_len];
 
             padded_ciphertext[..PADDING_LEN].copy_from_slice(&padding);
             padded_ciphertext[PADDING_LEN..NONCE_LEN + PADDING_LEN].copy_from_slice(&nonce);
